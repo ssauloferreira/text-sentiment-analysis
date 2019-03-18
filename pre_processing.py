@@ -1,3 +1,5 @@
+import gensim
+import pickle
 import string
 import nltk
 import numpy as np
@@ -5,7 +7,6 @@ from nltk import WordNetLemmatizer
 from scipy.misc import comb
 from stemming.porter2 import stem
 from nltk.corpus import stopwords
-from keras.preprocessing.text import text_to_word_sequence
 
 lemmatizer = WordNetLemmatizer()
 punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:"
@@ -13,7 +14,6 @@ punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:"
 def to_process(docs, pos):
 
     # Reading stop-words
-    arq = open('Preprocess/sw.txt', 'r')
     stop_words = set(stopwords.words('english'))
 
     new_docs = []
@@ -27,7 +27,7 @@ def to_process(docs, pos):
 
         # Removing stop words
         for word in tokens:
-            if word not in stopWords and word not in punctuation:
+            if word not in stop_words and word not in punctuation:
                 result.append(word)
 
         # Stemming and lemmatizing
@@ -77,13 +77,14 @@ def to_process(docs, pos):
 
     return new_docs
 
-def rand_index_score(clusters, classes):
-    tp_plus_fp = comb(np.bincount(clusters), 2).sum()
-    tp_plus_fn = comb(np.bincount(classes), 2).sum()
-    A = np.c_[(clusters, classes)]
-    tp = sum(comb(np.bincount(A[A[:, 0] == i, 1]), 2).sum()
-             for i in set(clusters))
-    fp = tp_plus_fp - tp
-    fn = tp_plus_fn - tp
-    tn = comb(len(A), 2) - tp - fp - fn
-    return (tp + tn) / (tp + fp + fn + tn)
+def training_word2vec():
+    with open('Datasets/dataset_kindle_10k', 'rb') as fp:
+        target = pickle.load(fp)
+
+    sentences = to_process(target.docs, 6)
+
+    # train word2vec on the two sentences
+    model = gensim.models.Word2Vec(sentences, min_count=1)
+
+    return model
+

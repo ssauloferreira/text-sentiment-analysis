@@ -1,12 +1,3 @@
-from random import randint
-
-import xlrd
-import xlwt
-from xlutils.copy import copy
-
-from Classes.Data import Data
-
-
 class Dataset:
     def __init__(self):
         self.docs = []
