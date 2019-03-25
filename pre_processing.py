@@ -1,3 +1,5 @@
+import random
+
 import gensim
 import pickle
 import string
@@ -9,7 +11,7 @@ from stemming.porter2 import stem
 from nltk.corpus import stopwords
 
 lemmatizer = WordNetLemmatizer()
-punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:"
+punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789"
 
 def to_process(docs, pos):
 
@@ -21,6 +23,7 @@ def to_process(docs, pos):
     for text in docs:
 
         # Tokenizing
+        text = text.lower()
         tokens = nltk.word_tokenize(text)
 
         result = []
@@ -30,9 +33,8 @@ def to_process(docs, pos):
             if word not in stop_words and word not in punctuation:
                 result.append(word)
 
-        # Stemming and lemmatizing
-        stems = [stem(word) for word in tokens]
-        result = [lemmatizer.lemmatize(word) for word in stems]
+        # lemmatizing
+        result = [lemmatizer.lemmatize(word) for word in tokens]
 
         # POS filter: only adverbs, adjectives and nouns
         pos_tags = nltk.pos_tag(result)
@@ -87,4 +89,44 @@ def training_word2vec():
     model = gensim.models.Word2Vec(sentences, min_count=1)
 
     return model
+
+with open('Datasets/dataset_books', 'rb') as fp:
+    data_source_a = pickle.load(fp)
+with open('Datasets/dataset_kitchen', 'rb') as fp:
+    data_source_b = pickle.load(fp)
+with open('Datasets/dataset_electronics', 'rb') as fp:
+    data_source_c = pickle.load(fp)
+
+def suffling(data):
+    docs = data.docs
+    labels = data.labels
+
+    c = list(zip(docs, labels))
+
+    random.shuffle(c)
+
+    docs, labels = zip(*c)
+
+    data.docs = docs
+    data.labels = labels
+
+    return data
+
+
+data_source_a.docs = to_process(data_source_a.docs, '6')
+data_source_b.docs = to_process(data_source_b.docs, '6')
+data_source_c.docs = to_process(data_source_c.docs, '6')
+
+data_source_a = suffling(data_source_a)
+data_source_b = suffling(data_source_b)
+data_source_c = suffling(data_source_c)
+
+print(data_source_a.docs)
+
+with open('dataset_books', 'wb') as fp:
+    pickle.dump(data_source_a, fp)
+with open('dataset_kitchen', 'wb') as fp:
+    pickle.dump(data_source_b, fp)
+with open('dataset_electronics', 'wb') as fp:
+    pickle.dump(data_source_c, fp)
 

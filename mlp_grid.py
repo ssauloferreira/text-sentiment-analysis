@@ -1,6 +1,4 @@
 import pickle
-# from keras import Sequential
-# from keras.layers import Embedding, Dropout, Conv1D, MaxPooling1D, LSTM, Dense, Activation
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -167,11 +165,10 @@ for parameter in ParameterGrid(params):
 
     #  -------------------------------------- classifying  ---------------------------------------
 
-    print('----------------------------------------------------------------------\nClassifier: ', classifier,
-          '\n')
+    print('----------------------------------------------------------------------\n')
     print('First domain\'s features: ', features_a.__len__())
     print('Second domain\'s features: ', features_b.__len__())
-    print('Number of features after', features_mode, ': ', features.__len__())
+    print('Number of features after', parameter['feature_mode'], ': ', features.__len__())
     print('Number of features after selection:', features_target.__len__())
 
     mlp = MLPClassifier(activation='relu', alpha=1e-05, batch_size='auto',
@@ -181,7 +178,7 @@ for parameter in ParameterGrid(params):
                         max_iter=200, momentum=0.9, n_iter_no_change=10,
                         nesterovs_momentum=True, power_t=0.5, random_state=1,
                         shuffle=True, solver='lbfgs', tol=0.0001,
-                        validation_fraction=0.1, verbose=True, warm_start=False)
+                        validation_fraction=0.1, verbose=False, warm_start=False)
     mlp.fit(x_train_tfidf, labels_train)
     predict = mlp.predict(x_test_tfidf)
 
