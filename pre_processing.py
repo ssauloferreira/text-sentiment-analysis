@@ -90,43 +90,44 @@ def training_word2vec():
 
     return model
 
-with open('Datasets/dataset_books', 'rb') as fp:
-    data_source_a = pickle.load(fp)
-with open('Datasets/dataset_kitchen', 'rb') as fp:
-    data_source_b = pickle.load(fp)
-with open('Datasets/dataset_electronics', 'rb') as fp:
-    data_source_c = pickle.load(fp)
+def gen_data():
+    with open('Datasets/dataset_books', 'rb') as fp:
+        data_source_a = pickle.load(fp)
+    with open('Datasets/dataset_kitchen', 'rb') as fp:
+        data_source_b = pickle.load(fp)
+    with open('Datasets/dataset_electronics', 'rb') as fp:
+        data_source_c = pickle.load(fp)
 
-def suffling(data):
-    docs = data.docs
-    labels = data.labels
+    def suffling(data):
+        docs = data.docs
+        labels = data.labels
 
-    c = list(zip(docs, labels))
+        c = list(zip(docs, labels))
 
-    random.shuffle(c)
+        random.shuffle(c)
 
-    docs, labels = zip(*c)
+        docs, labels = zip(*c)
 
-    data.docs = docs
-    data.labels = labels
+        data.docs = docs
+        data.labels = labels
 
-    return data
+        return data
 
 
-data_source_a.docs = to_process(data_source_a.docs, '6')
-data_source_b.docs = to_process(data_source_b.docs, '6')
-data_source_c.docs = to_process(data_source_c.docs, '6')
+    data_source_a.docs = to_process(data_source_a.docs, '6')
+    data_source_b.docs = to_process(data_source_b.docs, '6')
+    data_source_c.docs = to_process(data_source_c.docs, '6')
 
-data_source_a = suffling(data_source_a)
-data_source_b = suffling(data_source_b)
-data_source_c = suffling(data_source_c)
+    data_source_a = suffling(data_source_a)
+    data_source_b = suffling(data_source_b)
+    data_source_c = suffling(data_source_c)
 
-print(data_source_a.docs)
+    print(data_source_a.docs)
 
-with open('dataset_books', 'wb') as fp:
-    pickle.dump(data_source_a, fp)
-with open('dataset_kitchen', 'wb') as fp:
-    pickle.dump(data_source_b, fp)
-with open('dataset_electronics', 'wb') as fp:
-    pickle.dump(data_source_c, fp)
+    with open('dataset_books', 'wb') as fp:
+        pickle.dump(data_source_a, fp)
+    with open('dataset_kitchen', 'wb') as fp:
+        pickle.dump(data_source_b, fp)
+    with open('dataset_electronics', 'wb') as fp:
+        pickle.dump(data_source_c, fp)
 

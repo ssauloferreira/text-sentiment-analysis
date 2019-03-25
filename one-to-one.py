@@ -37,19 +37,17 @@ def to_string(lists):
 
 # ---------------------------------------- parameters -------------------------------------------
 classifier = 'mlp'
-num_of_features_source = 1000
-num_of_features_target = 500
+num_of_features_source = 10000
+num_of_features_target = 4000
 pos = '6'
 features_mode = 'intersec'
-src = ['books', 'kitchen', 'electronics']
+src = ['electronics', 'books']
 
 # --------------------------------------- loading datasets ---------------------------------------
 with open('Datasets/dataset_'+src[0], 'rb') as fp:
-    data_source_a = pickle.load(fp)
+    data_a = pickle.load(fp)
 with open('Datasets/dataset_'+src[1], 'rb') as fp:
-    data_source_b = pickle.load(fp)
-with open('Datasets/dataset_'+src[2], 'rb') as fp:
-    target = pickle.load(fp)
+    data_b = pickle.load(fp)
 
 # --------------------------------------- obs ---------------------------------------
 print('Model 2 Cross-Domain.\n2 source domains and 1 target domain.')
@@ -58,17 +56,17 @@ print("POS\n1: Adjectives\n2: Adverbs\n3: Nouns\n4: Verbs\n5: Adjectives and adv
 
 # ----------------------------- preprocessing & splitting -------------------------------------
 
-vocabulary = gen_vocab(target.docs)
+vocabulary = gen_vocab(data_b.docs)
 
-target_train, target_test, labels_train, labels_test = train_test_split(target.docs, target.labels,
+target_train, target_test, labels_train, labels_test = train_test_split(data_b.docs, data_b.labels,
                                                                         train_size=0.2, random_state=42)
 
 # -------------------------------------- chi source A -----------------------------------------
 print('Chi-source')
 cv = CountVectorizer(max_df=0.95, min_df=2, max_features=10000)
-x_source_a = cv.fit_transform(to_string(data_source_a.docs))
+x_source_a = cv.fit_transform(to_string(data_a.docs))
 
-chi_stats, p_vals = chi2(x_source_a, data_source_a.labels)
+chi_stats, p_vals = chi2(x_source_a, data_a.labels)
 chi_res = sorted(list(zip(cv.get_feature_names(), chi_stats)),
                  key=lambda x: x[1], reverse=True)[0:num_of_features_source]
 
@@ -76,36 +74,12 @@ features_a = []
 for chi in chi_res:
     features_a.append(chi[0])
 
-# --------------------------------------- chi source B -----------------------------------------
-cv = CountVectorizer(max_df=0.95, min_df=2, max_features=10000)
-x_source_b = cv.fit_transform(to_string(data_source_b.docs))
-
-chi_stats, p_vals = chi2(x_source_b, data_source_b.labels)
-chi_res = sorted(list(zip(cv.get_feature_names(), chi_stats
-                          )), key=lambda x: x[1], reverse=True)[0:num_of_features_source]
-
-features_b = []
-for chi in chi_res:
-    features_b.append(chi[0])
-
 #  ------------------------------------- features selection  ----------------------------------
 print('Features selection')
 
-features = []
+print('Features before expansion: ', len(features_a))
 
-if features_mode == 'intersec':
-    for feature in features_a:
-        if feature in features_b:
-            features.append(feature)
-else:
-    features = [a for a in features_b]
-    for feature in features_a:
-        if feature not in features:
-            features.append(feature)
-
-print('Features before expansion: ', len(features))
-
-features = extend_features(features=features, vocabulary=vocabulary, src=src[2])
+features = extend_features(features=features_a, vocabulary=vocabulary, src=src[1])
 
 # --------------------------- chi target ----------------------------------
 cv = CountVectorizer(max_df=0.95, min_df=2, max_features=10000, vocabulary=features)
@@ -118,18 +92,19 @@ chi_res = sorted(list(zip(cv.get_feature_names(), chi_stats
 features_target = []
 for chi in chi_res:
     features_target.append(chi[0])
-print(features_target)
 #  ----------------------------------------- tf-idf  -----------------------------------------
 
 cv = TfidfVectorizer(smooth_idf=True, min_df=3, norm='l1', vocabulary=features_target)
 x_train_tfidf = cv.fit_transform(to_string(target_train))  # tfidf de treino, y_train é o vetor de label
 x_test_tfidf = cv.fit_transform(to_string(target_test))  # tfidf de teste, y_test é o vetor de labels
 
+print(np.shape(x_train_tfidf))
+print(np.shape(x_test_tfidf))
+
 #  -------------------------------------- classifying  ---------------------------------------
 
 
 print('First domain\'s features: ', features_a.__len__())
-print('Second domain\'s features: ', features_b.__len__())
 print('Number of features after expansion: ', features.__len__())
 print('Number of features after selection:', features_target.__len__())
 
@@ -160,7 +135,7 @@ elif classifier == 'knn':
         neigh = KNeighborsClassifier(n_neighbors=k)
         neigh.fit(x_train_tfidf, labels_train)
 
-        predict = [neigh.predict(test) for test in x_test_tfidf]
+        predict = neigh.predict(x_test_tfidf)
 
         print('k:', k)
 
