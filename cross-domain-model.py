@@ -37,8 +37,8 @@ def to_string(lists):
 
 # ---------------------------------------- parameters -------------------------------------------
 classifier = 'mlp'
-num_of_features_source = 1000
-num_of_features_target = 500
+num_of_features_source = 10000
+num_of_features_target = 4000
 pos = '6'
 features_mode = 'intersec'
 src = ['books', 'kitchen', 'electronics']
@@ -51,6 +51,9 @@ with open('Datasets/dataset_'+src[1], 'rb') as fp:
 with open('Datasets/dataset_'+src[2], 'rb') as fp:
     target = pickle.load(fp)
 
+data = data_source_a.docs
+labels = data_source_a.labels
+
 # --------------------------------------- obs ---------------------------------------
 print('Model 2 Cross-Domain.\n2 source domains and 1 target domain.')
 print("Partial results\nCount mode: TFIDF\nStop words, POS filter, tokenizing, lemmatizing and stemming.")
@@ -59,9 +62,6 @@ print("POS\n1: Adjectives\n2: Adverbs\n3: Nouns\n4: Verbs\n5: Adjectives and adv
 # ----------------------------- preprocessing & splitting -------------------------------------
 
 vocabulary = gen_vocab(target.docs)
-
-target_train, target_test, labels_train, labels_test = train_test_split(target.docs, target.labels,
-                                                                        train_size=0.2, random_state=42)
 
 # -------------------------------------- chi source A -----------------------------------------
 print('Chi-source')
@@ -107,11 +107,12 @@ print('Features before expansion: ', len(features))
 
 features = extend_features(features=features, vocabulary=vocabulary, src=src[2])
 
+
 # --------------------------- chi target ----------------------------------
 cv = CountVectorizer(max_df=0.95, min_df=2, max_features=10000, vocabulary=features)
-x_target = cv.fit_transform(to_string(target_train))
+x_target = cv.fit_transform(to_string(target.docs))
 
-chi_stats, p_vals = chi2(x_target, labels_train)
+chi_stats, p_vals = chi2(x_target, target.labels)
 chi_res = sorted(list(zip(cv.get_feature_names(), chi_stats
                           )), key=lambda x: x[1], reverse=True)[0:num_of_features_target]
 
@@ -119,11 +120,12 @@ features_target = []
 for chi in chi_res:
     features_target.append(chi[0])
 print(features_target)
+
 #  ----------------------------------------- tf-idf  -----------------------------------------
 
-cv = TfidfVectorizer(smooth_idf=True, min_df=3, norm='l1', vocabulary=features_target)
-x_train_tfidf = cv.fit_transform(to_string(target_train))  # tfidf de treino, y_train é o vetor de label
-x_test_tfidf = cv.fit_transform(to_string(target_test))  # tfidf de teste, y_test é o vetor de labels
+cv = TfidfVectorizer(smooth_idf=True, min_df=3, norm='l1', vocabulary=features_target, max_features=num_of_features_target)
+x_train_tfidf = cv.fit_transform(to_string(data))  # tfidf de treino, y_train é o vetor de label
+x_test_tfidf = cv.fit_transform(to_string(target.docs))  # tfidf de teste, y_test é o vetor de labels
 
 #  -------------------------------------- classifying  ---------------------------------------
 
@@ -131,7 +133,6 @@ x_test_tfidf = cv.fit_transform(to_string(target_test))  # tfidf de teste, y_tes
 print('First domain\'s features: ', features_a.__len__())
 print('Second domain\'s features: ', features_b.__len__())
 print('Number of features after expansion: ', features.__len__())
-print('Number of features after selection:', features_target.__len__())
 
 if classifier == 'mlp':
     mlp = MLPClassifier(activation='relu', alpha=1e-05, batch_size='auto',
@@ -142,61 +143,61 @@ if classifier == 'mlp':
                         nesterovs_momentum=True, power_t=0.5, random_state=1,
                         shuffle=True, solver='lbfgs', tol=0.0001,
                         validation_fraction=0.1, verbose=False, warm_start=False)
-    mlp.fit(x_train_tfidf, labels_train)
+    mlp.fit(x_train_tfidf, labels)
     predict = mlp.predict(x_test_tfidf)
 
-    precision = f1_score(labels_test, predict, average='binary')
+    precision = f1_score(target.labels, predict, average='binary')
     print('Precision:', precision)
-    accuracy = accuracy_score(labels_test, predict)
+    accuracy = accuracy_score(target.labels, predict)
     print('Accuracy: ', accuracy)
-    recall = recall_score(labels_test, predict, average='binary')
+    recall = recall_score(target.labels, predict, average='binary')
     print('Recall: ', recall)
 
-    confMatrix = confusion_matrix(labels_test, predict)
+    confMatrix = confusion_matrix(target.labels, predict)
     print('Confusion matrix: \n', confMatrix)
 
 elif classifier == 'knn':
     for k in range(10):
         neigh = KNeighborsClassifier(n_neighbors=k)
-        neigh.fit(x_train_tfidf, labels_train)
+        neigh.fit(x_train_tfidf, labels)
 
         predict = [neigh.predict(test) for test in x_test_tfidf]
 
         print('k:', k)
 
-        precision = f1_score(labels_test, predict, average='binary')
+        precision = f1_score(target.labels, predict, average='binary')
         print('Precision:', precision)
-        accuracy = accuracy_score(labels_test, predict)
+        accuracy = accuracy_score(target.labels, predict)
         print('Accuracy: ', accuracy)
-        recall = recall_score(labels_test, predict, average='binary')
+        recall = recall_score(target.labels, predict, average='binary')
         print('Recall: ', recall)
-        confMatrix = confusion_matrix(labels_test, predict)
+        confMatrix = confusion_matrix(target.labels, predict)
         print('Confusion matrix: \n', confMatrix)
 
 elif classifier == 'logreg':
     classifier = LogisticRegression()
-    classifier.fit(x_train_tfidf, labels_train)
+    classifier.fit(x_train_tfidf, labels)
     predict = classifier.predict(x_test_tfidf)
 
-    precision = f1_score(labels_test, predict, average='binary')
+    precision = f1_score(target.labels, predict, average='binary')
     print('Precision:', precision)
-    accuracy = accuracy_score(labels_test, predict)
+    accuracy = accuracy_score(target.labels, predict)
     print('Accuracy: ', accuracy)
-    recall = recall_score(labels_test, predict, average='binary')
+    recall = recall_score(target.labels, predict, average='binary')
     print('Recall: ', recall)
-    confMatrix = confusion_matrix(labels_test, predict)
+    confMatrix = confusion_matrix(target.labels, predict)
 
 elif classifier == 'tree':
     clf = tree.DecisionTreeClassifier()
-    clf = clf.fit(x_train_tfidf, labels_train)
+    clf = clf.fit(x_train_tfidf, labels)
     predict = clf.predict(x_test_tfidf)
 
-    precision = f1_score(labels_test, predict, average='binary')
+    precision = f1_score(target.labels, predict, average='binary')
     print('Precision:', precision)
-    accuracy = accuracy_score(labels_test, predict)
+    accuracy = accuracy_score(target.labels, predict)
     print('Accuracy: ', accuracy)
-    recall = recall_score(labels_test, predict, average='binary')
+    recall = recall_score(target.labels, predict, average='binary')
     print('Recall: ', recall)
-    confMatrix = confusion_matrix(labels_test, predict)
+    confMatrix = confusion_matrix(target.labels, predict)
 
 print('----------------------------------------------------------------------\n')

@@ -36,11 +36,12 @@ def to_string(lists):
 
 
 # ---------------------------------------- parameters -------------------------------------------
-classifier = 'mlp'
+classifier = 'tree'
 num_of_features_source = 10000
 num_of_features_target = 4000
 pos = '6'
 features_mode = 'intersec'
+num_folds = 10
 src = ['electronics', 'books', 'kitchen']
 
 # --------------------------------------- loading datasets ---------------------------------------
@@ -63,27 +64,33 @@ print("POS\n1: Adjectives\n2: Adverbs\n3: Nouns\n4: Verbs\n5: Adjectives and adv
 
 vocabulary = gen_vocab(target.docs)
 
-kf = KFold(n_splits=10)
+
 
 final_accu = []
 final_recall = []
 final_precision = []
 
+p = 1
+
+kf = KFold(n_splits=num_folds)
 for train, test in kf.split(target.docs):
     # target_train, target_test, labels_train, labels_test = train_test_split(target.docs, target.labels,
     #                                                                        train_size=0.2, random_state=42)
 
     target_train = []
     labels_train = []
-    for i in train:
+    for i in test:
         target_train.append(target.docs[i])
         labels_train.append(target.labels[i])
 
     target_test = []
     labels_test = []
-    for i in test:
+    for i in train:
         target_test.append(target.docs[i])
         labels_test.append(target.labels[i])
+
+    print(p*100/num_folds, '%')
+    p = p+1
 
     # -------------------------------------- chi source A -----------------------------------------
     #print('Chi-source')
@@ -129,6 +136,7 @@ for train, test in kf.split(target.docs):
 
     features = extend_features(features=features, vocabulary=vocabulary, src=src[2])
 
+    '''
     # --------------------------- chi target ----------------------------------
     cv = CountVectorizer(max_df=0.95, min_df=2, max_features=10000, vocabulary=features)
     x_target = cv.fit_transform(to_string(target_train))
@@ -140,9 +148,10 @@ for train, test in kf.split(target.docs):
     features_target = []
     for chi in chi_res:
         features_target.append(chi[0])
+    '''
     #  ----------------------------------------- tf-idf  -----------------------------------------
 
-    cv = TfidfVectorizer(smooth_idf=True, min_df=3, norm='l1', vocabulary=features_target)
+    cv = TfidfVectorizer(smooth_idf=True, min_df=3, norm='l1', vocabulary=features, max_features=num_of_features_target)
     x_train_tfidf = cv.fit_transform(to_string(train_data))  # tfidf de treino, y_train é o vetor de label
     x_test_tfidf = cv.fit_transform(to_string(target_test))  # tfidf de teste, y_test é o vetor de labels
 
@@ -178,7 +187,7 @@ for train, test in kf.split(target.docs):
     elif classifier == 'knn':
 
         neigh = KNeighborsClassifier(n_neighbors=5)
-        neigh.fit(x_train_tfidf, labels_train)
+        neigh.fit(x_train_tfidf, labels)
 
         predict = neigh.predict(x_test_tfidf)
 
@@ -192,7 +201,7 @@ for train, test in kf.split(target.docs):
 
     elif classifier == 'logreg':
         classifier = LogisticRegression()
-        classifier.fit(x_train_tfidf, labels_train)
+        classifier.fit(x_train_tfidf, labels)
         predict = classifier.predict(x_test_tfidf)
 
         precision = f1_score(labels_test, predict, average='binary')
@@ -205,7 +214,7 @@ for train, test in kf.split(target.docs):
 
     elif classifier == 'tree':
         clf = tree.DecisionTreeClassifier()
-        clf = clf.fit(x_train_tfidf, labels_train)
+        clf = clf.fit(x_train_tfidf, labels)
         predict = clf.predict(x_test_tfidf)
 
 
