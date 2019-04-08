@@ -25,7 +25,6 @@ def tuple_to_list(tuples):
 
     return result
 
-
 def rare_features(dataset, minimum_tf):
     vocabulary = {}
 
@@ -51,7 +50,6 @@ def rare_features(dataset, minimum_tf):
 
     return result
 
-
 def negation_processing(text):
     negable = ['NN', 'JJ', 'VB']
     size = len(text)
@@ -68,7 +66,6 @@ def negation_processing(text):
                     break
                 j += 1
     return text
-
 
 def to_process(docs, pos, minimum_tf):
     # Loading rare rare_features
