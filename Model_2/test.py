@@ -1,20 +1,16 @@
-from collections import OrderedDict
+from flair.data import Sentence
+from flair.embeddings import FlairEmbeddings, StackedEmbeddings
 
-import nltk
-import spacy
+flair_forward = FlairEmbeddings('news-forward-fast')
+flair_backward = FlairEmbeddings('news-backward-fast')
 
-from pre_processing import to_process
+stacked_embeddings = StackedEmbeddings(embeddings=[
+    flair_forward,
+    flair_backward
+])
 
-nlp = spacy.load('en')
+sentence = Sentence('I like this kind of music')
+stacked_embeddings.embed(sentence)
 
-doc = nlp(u"I don't like those books.")
-
-for token in doc:
-    print(token.lemma_)
-
-texts = ["i can't do it", "i really loved those games", "i'm not the happiest guy",
-         "it's not really good"]
-
-texts = to_process(texts, '6', 0)
-
-print(texts)
+for token in sentence:
+    print(token.embedding)

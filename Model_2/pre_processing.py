@@ -138,19 +138,6 @@ def to_process(docs, pos, minimum_tf):
 
     return new_docs
 
-
-def training_word2vec():
-    with open('Datasets/dataset_kindle_10k', 'rb') as fp:
-        target = pickle.load(fp)
-
-    sentences = to_process(target.docs, 6)
-
-    # train word2vec on the two sentences
-    model = gensim.models.Word2Vec(sentences, min_count=1)
-
-    return model
-
-
 def gen_data():
     with open('Datasets/dataset_books', 'rb') as fp:
         data_source_a = pickle.load(fp)
@@ -190,3 +177,4 @@ def gen_data():
         pickle.dump(data_source_b, fp)
     with open('dataset_electronics', 'wb') as fp:
         pickle.dump(data_source_c, fp)
+
