@@ -1,5 +1,6 @@
 from scipy.spatial import distance
-
+from flair.data import Sentence
+from flair.embeddings import FlairEmbeddings, StackedEmbeddings
 
 class Dataset:
     def __init__(self):
@@ -48,10 +49,14 @@ class Flair_Embedding:
 
     def gen_vocabulary(self, vocabulary):
         for word in vocabulary:
-            self.vocabulary[word] = self.stacked_embeddings.embed(word)
+            sentence = Sentence(word)
+            self.vocabulary[word] = self.stacked_embeddings.embed(sentence)
 
     def embed_unique(self, word):
-        return self.stacked_embeddings.embed(word)
+        sentence = Sentence(word)
+        self.stacked_embeddings.embed(sentence)
+
+        return sentence[0].embedding
 
     def similarity(self, word_a, word_b):
         if self.vocabulary.__len__() == 0:
@@ -61,7 +66,9 @@ class Flair_Embedding:
 
         return similarity
 
-    def most_similar(self, word, dictionary, num_of_similar):
+    def most_similar(self, word, dictionary=0, num_of_similar=5):
+        if dictionary == 0:
+            dictionary = self.vocabulary
         most_similar = []
         for word_b in dictionary:
             most_similar.append([word_b, self.similarity(word, word_b)])
