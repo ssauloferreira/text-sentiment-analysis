@@ -1,4 +1,3 @@
-import numpy as np
 import pickle
 
 from sklearn import tree
@@ -6,11 +5,10 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.feature_selection import chi2
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, accuracy_score, recall_score, confusion_matrix
-from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 
-from extend_features import extend_features, tfidf_score
+from Model_1.extend_features import extend_features, tfidf_score
 
 
 def gen_vocab(dataset):

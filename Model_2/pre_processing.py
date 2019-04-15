@@ -11,7 +11,7 @@ stop_words = set(stopwords.words('english'))
 # Loading spacy's model
 nlp = spacy.load('en')
 # Punctuation's list
-punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789"
+punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 # Negation words
 neg_words = ['not', 'no', 'nothing', 'never']
 
@@ -51,7 +51,7 @@ def rare_features(dataset, minimum_tf):
     return result
 
 def negation_processing(text):
-    negable = ['NN', 'JJ', 'VB']
+    negable = ['JJ', 'VB']
     size = len(text)
 
     text = tuple_to_list(text)
@@ -89,7 +89,8 @@ def to_process(docs, pos, minimum_tf):
         # Removing stop words & punctuation & rare features
         tokens_filtered = []
         for word in pos_tags:
-            if word[0] not in stop_words and word[0] not in punctuation and word[0] not in rare:
+            if word[0] not in stop_words and word[0] not in punctuation and word[0] not in rare and word[0].isalpha():
+                word[0] = word[0].lower()
                 tokens_filtered.append(word)
 
         pos_tags = tokens_filtered
