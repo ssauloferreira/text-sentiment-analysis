@@ -1,3 +1,4 @@
+'''
 from classes import Flair_Embedding
 
 
@@ -11,7 +12,7 @@ def gen_vocab(dataset):
     return vocabulary
 
 
-'''
+
 flair = Flair_Embedding()
 
 
@@ -21,7 +22,7 @@ print(1)
 print(flair.most_similar('book'))
 print(2)
 
-'''
+
 
 flair = Flair_Embedding()
 
@@ -54,3 +55,25 @@ for word in vocabulary:
 print('Quantidade faltante:', qtd)
 print('Palavras faltantes')
 print(words)
+
+'''
+from k_means import TFIDF_KMeans
+word = ['a', 'b', 'c', 'd', 'e',
+        'f', 'g', 'h', 'i', 'j',
+        'k', 'l', 'm', 'n', 'o']
+itens = [[1, 3, 2], [5, 1, 3], [8, 5, 6], [2, 3, 1], [4, 7, 2],
+         [6, 2, 3], [5, 8, 3], [7, 6, 7], [8, 8, 8], [1, 1, 1],
+         [2, 2, 2], [3, 1, 2], [4, 5, 9], [9, 9, 9], [2, 8, 3]]
+
+print('len', len(itens))
+
+kmeans = TFIDF_KMeans(n_clusters=3, vocabulary=word, n_it=1000, random_state=42)
+kmeans.cluster(itens)
+
+for i in kmeans.get_clusters():
+    print(i)
+
+for i in kmeans.get_word_clusters():
+    print(i)
+
+print(kmeans.get_centers())
