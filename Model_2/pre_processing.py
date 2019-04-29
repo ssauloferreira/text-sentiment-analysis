@@ -1,7 +1,7 @@
-import pickle
-import random
 import nltk
+import numpy as np
 import spacy
+from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import stopwords, wordnet
 
 # Reading stop-words
@@ -12,6 +12,25 @@ nlp = spacy.load('en')
 punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 # Negation words
 neg_words = ['not', 'no', 'nothing', 'never']
+# Resume pos
+resume = {
+    'JJ': 'JJ',
+    'JJR': 'JJ',
+    'JJS': 'JJ',
+    'VB': 'VB',
+    'VBD': 'VB',
+    'VBG': 'VB',
+    'VBN': 'VB',
+    'VBP': 'VB',
+    'VBZ': 'VB',
+    'NN': 'NN',
+    'NNS': 'NN',
+    'NNP': 'NNP',
+    'NNPS': 'NNP',
+    'RB': 'RB',
+    'RBR': 'RB',
+    'RBS': 'RB'
+}
 
 
 def get_wordnet_pos(word):
@@ -23,6 +42,7 @@ def get_wordnet_pos(word):
                 "R": wordnet.ADV}
 
     return tag_dict.get(tag, wordnet.NOUN)
+
 
 def tuple_to_list(tuples):
     result = []
@@ -141,7 +161,7 @@ def to_process(docs, pos, minimum_tf):
                         word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ' or \
                         word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS' or \
                         word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    result_pos.append([word[0], word[1]])
+                    result_pos.append([word[0], resume[word[1]]])
         else:
             result_pos = tokens_filtered
 
@@ -150,42 +170,49 @@ def to_process(docs, pos, minimum_tf):
     return new_docs
 
 
-def gen_data():
-    with open('Datasets/dataset_books', 'rb') as fp:
-        data_source_a = pickle.load(fp)
-    with open('Datasets/dataset_kitchen', 'rb') as fp:
-        data_source_b = pickle.load(fp)
-    with open('Datasets/dataset_electronics', 'rb') as fp:
-        data_source_c = pickle.load(fp)
+def vocabulary_pos(dataset):
+    vocab = []
 
-    def suffling(data):
-        docs = data.docs
-        labels = data.labels
+    for text in dataset:
+        for word in text:
+            vocab.append([word[0], word[1]])
 
-        c = list(zip(docs, labels))
+    return vocab
 
-        random.shuffle(c)
 
-        docs, labels = zip(*c)
+def get_senti_representation(vocabulary):
+    vocab = []
+    scores = []
+    get_pos = {
+        'NN': 'n',
+        'VB': 'v',
+        'JJ': 'a',
+        'RB': 'r',
+        'NNP': 'n'
+    }
 
-        data.docs = docs
-        data.labels = labels
+    for item in vocabulary:
 
-        return data
+        if len(item) != 2:
+            raise Exception("not a [word,pos] list")
 
-    data_source_a.docs = to_process(data_source_a.docs, '6')
-    data_source_b.docs = to_process(data_source_b.docs, '6')
-    data_source_c.docs = to_process(data_source_c.docs, '6')
+        word = item[0]
+        pos = get_pos[item[1]]
 
-    data_source_a = suffling(data_source_a)
-    data_source_b = suffling(data_source_b)
-    data_source_c = suffling(data_source_c)
+        syns = list(swn.senti_synsets(word))
+        if syns.__len__() > 0:
+            pos_score = []
+            neg_score = []
+            obj_score = []
+            for syn in syns:
+                if pos in syn.synset.name():
+                    pos_score.append(syn.pos_score())
+                    neg_score.append(syn.neg_score())
+                    obj_score.append(syn.obj_score())
 
-    print(data_source_a.docs)
+            scores.append([np.mean(pos_score), np.mean(neg_score), np.mean(obj_score)])
+        else:
+            scores.append([0, 0, 0])
+        vocab.append(word)
 
-    with open('dataset_books', 'wb') as fp:
-        pickle.dump(data_source_a, fp)
-    with open('dataset_kitchen', 'wb') as fp:
-        pickle.dump(data_source_b, fp)
-    with open('dataset_electronics', 'wb') as fp:
-        pickle.dump(data_source_c, fp)
+    return vocab, scores
