@@ -1,8 +1,10 @@
 import pickle
 import random
+
+import gensim
 import nltk
 import spacy
-from nltk.corpus import stopwords, wordnet
+from nltk.corpus import stopwords
 
 # Reading stop-words
 stop_words = set(stopwords.words('english'))
@@ -14,16 +16,6 @@ punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 neg_words = ['not', 'no', 'nothing', 'never']
 
 
-def get_wordnet_pos(word):
-    """Map POS tag to first character lemmatize() accepts"""
-    tag = nltk.pos_tag([word])[0][1][0].upper()
-    tag_dict = {"J": wordnet.ADJ,
-                "N": wordnet.NOUN,
-                "V": wordnet.VERB,
-                "R": wordnet.ADV}
-
-    return tag_dict.get(tag, wordnet.NOUN)
-
 def tuple_to_list(tuples):
     result = []
 
@@ -32,7 +24,6 @@ def tuple_to_list(tuples):
         result.append(object)
 
     return result
-
 
 def rare_features(dataset, minimum_tf):
     vocabulary = {}
@@ -59,7 +50,6 @@ def rare_features(dataset, minimum_tf):
 
     return result
 
-
 def negation_processing(text):
     negable = ['JJ', 'VB']
     size = len(text)
@@ -76,7 +66,6 @@ def negation_processing(text):
                     break
                 j += 1
     return text
-
 
 def to_process(docs, pos, minimum_tf):
     # Loading rare rare_features
@@ -136,19 +125,16 @@ def to_process(docs, pos, minimum_tf):
                     result_pos.append(word[0])
         elif pos == '6':
             for word in pos_tags:
-                if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS' or \
-                        word[1] == 'VB' or word[1] == 'VBD' or word[1] == 'VBG' or \
-                        word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ' or \
-                        word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS' or \
-                        word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    result_pos.append([word[0], word[1]])
+                if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS' or word[1] == 'VB' or \
+                        word[1] == 'NN' or word[1] == 'NNS' \
+                        or word[1] == 'NNP' or word[1] == 'NNPS':
+                    result_pos.append(word[0])
         else:
             result_pos = tokens_filtered
 
         new_docs.append(result_pos)
 
     return new_docs
-
 
 def gen_data():
     with open('Datasets/dataset_books', 'rb') as fp:
@@ -189,3 +175,4 @@ def gen_data():
         pickle.dump(data_source_b, fp)
     with open('dataset_electronics', 'wb') as fp:
         pickle.dump(data_source_c, fp)
+
