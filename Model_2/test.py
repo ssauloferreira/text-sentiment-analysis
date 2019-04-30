@@ -1,37 +1,44 @@
-'''
-from k_means import TFIDF_KMeans
-word = ['a', 'b', 'c', 'd', 'e',
-        'f', 'g', 'h', 'i', 'j',
-        'k', 'l', 'm', 'n', 'o']
-itens = [[1, 3, 2], [5, 1, 3], [8, 5, 6], [2, 3, 1], [4, 7, 2],
-         [6, 2, 3], [5, 8, 3], [7, 6, 7], [8, 8, 8], [1, 1, 1],
-         [2, 2, 2], [3, 1, 2], [4, 5, 9], [9, 9, 9], [2, 8, 3]]
-
-print('len', len(itens))
-
-kmeans = TFIDF_KMeans(n_clusters=3, vocabulary=word, n_it=1000, random_state=42)
-kmeans.cluster(itens)
-
-for i in kmeans.get_clusters():
-    print(i)
-
-for i in kmeans.get_word_clusters():
-    print(i)
-
-print(kmeans.get_centers())
-'''
 import pickle
 
-from pre_processing import to_process, get_senti_representation
+import xlsxwriter
+from sklearn.cluster import SpectralClustering, DBSCAN
+
+from pre_processing import to_process, get_senti_representation, vocabulary_pos
 
 src = 'books'
+n = 10
 
-with open('Datasets/dataset_' + src, 'rb') as fp:
-    dataset = pickle.load(fp)
+for src in ('books', 'electronics', 'kitchen', 'dvd'):
 
-_data = to_process(dataset.docs[:50], '6', 5)
+    book = xlsxwriter.Workbook('Sheets/Clustering/Spectral/'+src + '.xls')
 
-vocab, scores = get_senti_representation(_data)
+    with open('Datasets/dataset_' + src, 'rb') as fp:
+        dataset = pickle.load(fp)
 
-for i in range(len(scores)):
-    print(vocab[i], ':', scores[i])
+    # Preprocessing and getting swn representation
+    data = to_process(dataset.docs, '6', 5)
+    vocabulary = vocabulary_pos(data)
+    vocab, scores = get_senti_representation(vocabulary, True)
+
+    for n in (10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 300, 350, 400):
+
+        print(src, n, end=' ')
+
+        clustering = DBSCAN(eps=1, min_samples=2)
+        #clustering = SpectralClustering(n_clusters=n, assign_labels="discretize", random_state=0)
+        # clustering = KMeans(n_clusters=n, random_state=0)
+        clustering.fit(scores)
+
+        clusters = [[] for i in range(n)]
+
+        for i in range(len(vocab)):
+            if vocab[i] not in clusters[clustering.labels_[i]]:
+                clusters[clustering.labels_[i]].append(vocab[i])
+
+        sheet = book.add_worksheet(n.__str__() + ' clusters')
+
+        for i in range(len(clusters)):
+            for j in range(len(clusters[i])):
+                sheet.write(j, i, clusters[i][j])
+    print()
+    book.close()

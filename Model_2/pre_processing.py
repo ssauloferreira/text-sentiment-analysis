@@ -180,7 +180,7 @@ def vocabulary_pos(dataset):
     return vocab
 
 
-def get_senti_representation(vocabulary):
+def get_senti_representation(vocabulary, pos_form=False):
     vocab = []
     scores = []
     get_pos = {
@@ -210,9 +210,20 @@ def get_senti_representation(vocabulary):
                     neg_score.append(syn.neg_score())
                     obj_score.append(syn.obj_score())
 
-            scores.append([np.mean(pos_score), np.mean(neg_score), np.mean(obj_score)])
+            if len(pos_score) > 0:
+                scores.append(
+                    [round(np.mean(pos_score), 3),
+                     round(np.mean(neg_score), 3),
+                     round(np.mean(obj_score), 3)]
+                )
+            else:
+                scores.append([0, 0, 0])
         else:
             scores.append([0, 0, 0])
-        vocab.append(word)
+
+        if pos_form:
+            vocab.append(word + '_' + pos)
+        else:
+            vocab.append(word)
 
     return vocab, scores
