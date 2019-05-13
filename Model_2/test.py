@@ -2,6 +2,7 @@ import pickle
 
 import xlsxwriter
 from sklearn.cluster import SpectralClustering, DBSCAN
+from sklearn.cluster import KMeans
 
 from pre_processing import to_process, get_senti_representation, vocabulary_pos
 
@@ -11,6 +12,7 @@ n = 10
 for src in ('books', 'electronics', 'kitchen', 'dvd'):
 
     book = xlsxwriter.Workbook('Sheets/Clustering/Spectral/'+src + '.xls')
+    book = xlsxwriter.Workbook(src + '.xls')
 
     with open('Datasets/dataset_' + src, 'rb') as fp:
         dataset = pickle.load(fp)
@@ -27,6 +29,7 @@ for src in ('books', 'electronics', 'kitchen', 'dvd'):
         clustering = DBSCAN(eps=1, min_samples=2)
         #clustering = SpectralClustering(n_clusters=n, assign_labels="discretize", random_state=0)
         # clustering = KMeans(n_clusters=n, random_state=0)
+        clustering = KMeans(n_clusters=n, random_state=0)
         clustering.fit(scores)
 
         clusters = [[] for i in range(n)]
