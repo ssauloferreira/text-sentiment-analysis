@@ -1,8 +1,9 @@
 import nltk
 import spacy
+import xlsxwriter
 from nltk import WordNetLemmatizer
 
-from Model_2.pre_processing import to_process, get_wordnet_pos
+from pre_processing import to_process, get_wordnet_pos
 import pickle
 
 src = 'dvd'
@@ -26,36 +27,58 @@ resume = {
     'RBS': 'RB'
 }
 
-with open('Datasets/dataset_' + src, 'rb') as fp:
-    dataset = pickle.load(fp)
+book = xlsxwriter.Workbook('Sheets/histograms.xls')
+for src in ('books', 'dvd', 'electronics', 'kitchen'):
+    j = 0
 
-_data = to_process(dataset.docs, '6', 5)
+    sheet = book.add_worksheet(src)
 
-for p in (0, 1, 2):
+    with open('Datasets/dataset_' + src, 'rb') as fp:
+        dataset = pickle.load(fp)
 
-    qtd = {
-        'JJ': 0,
-        'VB': 0,
-        'NN': 0,
-        'RB': 0,
-        'NNP': 0
-    }
+    _data = to_process(dataset.docs, '6', 5)
 
-    data = []
+    for p in (0, 1, 2):
 
-    if p == 2:
-        data = _data
-    else:
-        for i in range(len(_data)):
-            if dataset.labels[i] == p:
-                data.append(_data[i])
+        i = 0
 
-    for text in data:
-        for word in text:
-            pos = resume[word[1]]
-            aux = qtd[pos]
-            aux += 1
-            qtd[pos] = aux
+        qtd = {
+            'JJ': 0,
+            'VB': 0,
+            'NN': 0,
+            'RB': 0,
+            'NNP': 0
+        }
 
-    for item in qtd:
-        print(item, ':', qtd[item])
+        data = []
+
+        if p == 2:
+            data = _data
+        else:
+            for k in range(len(_data)):
+                if dataset.labels[k] == p:
+                    data.append(_data[k])
+
+        for text in data:
+            for word in text:
+                pos = resume[word[1]]
+                aux = qtd[pos]
+                aux += 1
+                qtd[pos] = aux
+        if p == 0:
+            sheet.write(i, j, 'negatives')
+        elif p == 1:
+            sheet.write(i, j, 'positives')
+        else:
+            sheet.write(i, j, 'all')
+
+        i += 1
+
+        for item in qtd:
+            sheet.write(i, j, item)
+            sheet.write(i, j+1, qtd[item])
+            i += 1
+
+        j += 3
+
+book.close()

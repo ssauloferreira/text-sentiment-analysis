@@ -12,13 +12,13 @@ n = 10
 for src in ('books', 'electronics', 'kitchen', 'dvd'):
 
     book = xlsxwriter.Workbook('Sheets/Clustering/Spectral/'+src + '.xls')
-    book = xlsxwriter.Workbook(src + '.xls')
+    #book = xlsxwriter.Workbook(src + '.xls')
 
     with open('Datasets/dataset_' + src, 'rb') as fp:
         dataset = pickle.load(fp)
 
     # Preprocessing and getting swn representation
-    data = to_process(dataset.docs, '6', 5)
+    data = to_process(dataset.docs, '6', 50)
     vocabulary = vocabulary_pos(data)
     vocab, scores = get_senti_representation(vocabulary, True)
 
@@ -26,10 +26,9 @@ for src in ('books', 'electronics', 'kitchen', 'dvd'):
 
         print(src, n, end=' ')
 
-        clustering = DBSCAN(eps=1, min_samples=2)
-        #clustering = SpectralClustering(n_clusters=n, assign_labels="discretize", random_state=0)
+        #clustering = DBSCAN(eps=1, min_samples=2)
+        clustering = SpectralClustering(n_clusters=n, assign_labels="discretize", random_state=0)
         # clustering = KMeans(n_clusters=n, random_state=0)
-        clustering = KMeans(n_clusters=n, random_state=0)
         clustering.fit(scores)
 
         clusters = [[] for i in range(n)]

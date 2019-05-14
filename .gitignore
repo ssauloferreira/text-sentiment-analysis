@@ -4,3 +4,5 @@ Model_2/\.idea/
 *.pyc
 
 Model_2/venv/
+
+*.xls#
