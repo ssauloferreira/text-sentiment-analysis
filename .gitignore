@@ -6,3 +6,9 @@ Model_2/\.idea/
 Model_2/venv/
 
 *.xls#
+
+\.idea/
+
+venv/bin/
+
+venv/

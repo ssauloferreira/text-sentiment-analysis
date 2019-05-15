@@ -1,6 +1,6 @@
 from scipy.spatial import distance
-from flair.data import Sentence
-from flair.embeddings import FlairEmbeddings, StackedEmbeddings
+#from flair.data import Sentence
+#from flair.embeddings import FlairEmbeddings, StackedEmbeddings
 
 class Dataset:
     def __init__(self):
@@ -35,7 +35,7 @@ class Data:
     def tostring(self):
         return self.label, self.doc
 
-
+'''
 class Flair_Embedding:
     def __init__(self):
         self.vocabulary = {}
@@ -82,3 +82,4 @@ class Flair_Embedding:
             raise Exception('word is not in vocabulary.')
         else:
             return self.vocabulary[word]
+'''
