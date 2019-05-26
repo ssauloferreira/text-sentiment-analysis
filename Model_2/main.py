@@ -1,38 +1,55 @@
-import csv
 import pickle
 
-from pre_processing import to_process
+from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_selection import chi2
 
-data = 'kitchen'
+from pre_processing import to_process, vocabulary_pos, get_senti_representation
 
-with open('Datasets/dataset_'+data, 'rb') as fp:
-    data_source = pickle.load(fp)
+n = 100
+src = 'books'
+tgt = 'electronics'
 
-dataset = to_process(data_source.docs, '7', 0)
+with open('Datasets/dataset_' + src, 'rb') as fp:
+    dataset_source = pickle.load(fp)
 
-tf = {}
-for text in dataset:
-    for word in text:
-        if word[0] not in tf:
-            tf[word[0]] = 1
-        else:
-            aux = tf[word[0]]
-            aux += 1
-            tf[word[0]] = aux
+with open('Datasets/dataset_' + tgt, 'rb') as fp:
+    dataset_target = pickle.load(fp)
 
-aux = {}
+# ---------------------------------- Preprocessing -------------------------------------------
+data_source = to_process(dataset_source.docs, '6', 50)
+label_source = dataset_source.labels
+data_target = to_process(dataset_target.docs, '6', 50)
+label_target = dataset_target.labels
 
-for text in dataset:
-    for word in text:
-        if word[0] not in aux:
-            info = [tf[word[0]], word[1]]
-            aux[word[0]] = info
+vocabulary_source = vocabulary_pos(data_source)
+vocab_source, scores_source = get_senti_representation(vocabulary_source, True)
+vocabulary_target = vocabulary_pos(data_target)
+vocab_target, scores_target = get_senti_representation(vocabulary_target, True)
 
-result = []
-for item in aux:
-    result.append([item, aux[item][0], aux[item][1]])
+# ----------------------------------- clustering ---------------------------------------------
+# clustering = DBSCAN(eps=1, min_samples=2)
+# clustering = SpectralClustering(n_clusters=n, assign_labels="discretize", random_state=0)
+clustering_source = KMeans(n_clusters=n, random_state=0)
+clustering_source.fit(scores_source)
+clustering_target = KMeans(n_clusters=n, random_state=0)
+clustering_target.fit(scores_source)
 
-csv_file = open(data+'.csv', 'w', newline='')
-csv_writer = csv.writer(csv_file)
-csv_writer.writerows(result)
-csv_file.close()
+wclusters = [[] for i in range(n)]
+sclusters = [[] for i in range(n)]
+
+for i in range(len(vocab)):
+    aux = clustering.labels_[i]
+    wclusters[aux].append(vocab[i])
+    sclusters[aux].append(scores[i])
+
+cv = CountVectorizer(max_df=0.95, min_df=2, max_features=10000)
+x_source = cv.fit_transform(to_string(data_source.docs))
+
+chi_stats, p_vals = chi2(x_source, data_source.labels)
+chi_res = sorted(list(zip(cv.get_feature_names(), chi_stats)),
+                 key=lambda x: x[1], reverse=True)[0:num_of_features_source]
+
+features_source = []
+for chi in chi_res:
+    features_source.append(chi[0])
