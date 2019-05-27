@@ -223,7 +223,9 @@ print(len(sentcluster_target))
 # -------------------------------- grouping features ---------------------------------------------
 print("Linking features")
 grouped_features = {}
-for i in range(len(wclusters_source[grouped_s[i]])):
+print(grouped_s)
+for i in range(len(grouped_s)):
+
     print(i, len(wclusters_source), len(wclusters_target[grouped_t[i]]))
     for j in range(len(wclusters_source[grouped_s[i]])):
         print(len())
