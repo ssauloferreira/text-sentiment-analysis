@@ -50,6 +50,5 @@ for src in ('books', 'electronics', 'kitchen', 'dvd'):
             for j in range(len(clusters[i])):
                 sheet.write(j, i, clusters[i][j])
 
-        break
     print()
     book.close()
