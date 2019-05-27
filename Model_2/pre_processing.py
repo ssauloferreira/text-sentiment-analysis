@@ -14,22 +14,22 @@ punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 neg_words = ['not', 'no', 'nothing', 'never']
 # Resume pos
 resume = {
-    'JJ': 'JJ',
-    'JJR': 'JJ',
-    'JJS': 'JJ',
-    'VB': 'VB',
-    'VBD': 'VB',
-    'VBG': 'VB',
-    'VBN': 'VB',
-    'VBP': 'VB',
-    'VBZ': 'VB',
-    'NN': 'NN',
-    'NNS': 'NN',
-    'NNP': 'NNP',
-    'NNPS': 'NNP',
-    'RB': 'RB',
-    'RBR': 'RB',
-    'RBS': 'RB'
+    'JJ': 'a',
+    'JJR': 'a',
+    'JJS': 'a',
+    'VB': 'v',
+    'VBD': 'v',
+    'VBG': 'v',
+    'VBN': 'v',
+    'VBP': 'v',
+    'VBZ': 'v',
+    'NN': 'n',
+    'NNS': 'n',
+    'NNP': 'n',
+    'NNPS': 'n',
+    'RB': 'r',
+    'RBR': 'r',
+    'RBS': 'r'
 }
 
 
@@ -161,7 +161,8 @@ def to_process(docs, pos, minimum_tf):
                         word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ' or \
                         word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS' or \
                         word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    result_pos.append([word[0], resume[word[1]]])
+                    aux = word[0] + '_' + resume[word[1]]
+                    result_pos.append(aux)
         else:
             result_pos = tokens_filtered
 
@@ -170,34 +171,30 @@ def to_process(docs, pos, minimum_tf):
     return new_docs
 
 
-def vocabulary_pos(dataset):
-    vocab = []
+def get_vocabulary(dataset):
+    vocab = {}
 
     for text in dataset:
         for word in text:
-            vocab.append([word[0], word[1]])
+            if word not in vocab:
+                vocab[word] = 0
 
-    return vocab
+    return vocab.keys()
 
 
 def get_senti_representation(vocabulary, pos_form=False):
     vocab = []
     scores = []
-    get_pos = {
-        'NN': 'n',
-        'VB': 'v',
-        'JJ': 'a',
-        'RB': 'r',
-        'NNP': 'n'
-    }
 
     for item in vocabulary:
 
-        if len(item) != 2:
-            raise Exception("not a [word,pos] list")
+        word = ''
+        pos = ''
 
-        word = item[0]
-        pos = get_pos[item[1]]
+        for i in range(len(item)):
+            if item[i] == '_':
+                word = item[:i]
+                pos = item[i+1:]
 
         syns = list(swn.senti_synsets(word))
         if syns.__len__() > 0:
@@ -212,9 +209,9 @@ def get_senti_representation(vocabulary, pos_form=False):
 
             if len(pos_score) > 0:
                 scores.append(
-                    [round(np.mean(pos_score), 3),
-                     round(np.mean(neg_score), 3),
-                     round(np.mean(obj_score), 3)]
+                    [round(max(pos_score), 3),
+                     round(max(neg_score), 3),
+                     round(max(obj_score), 3)]
                 )
             else:
                 scores.append([0, 0, 0])
