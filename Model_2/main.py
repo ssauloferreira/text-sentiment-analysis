@@ -3,8 +3,12 @@ import pickle
 import numpy as np
 from scipy.spatial import distance
 from sklearn.cluster import KMeans
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.feature_selection import chi2
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import f1_score, accuracy_score, recall_score, confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPClassifier
 
 from pre_processing import to_process, get_vocabulary, get_senti_representation
 
@@ -33,10 +37,13 @@ with open('Datasets/dataset_' + tgt, 'rb') as fp:
     dataset_target = pickle.load(fp)
 
 # ---------------------------------- preprocessing -------------------------------------------
-data_source = to_process(dataset_source.docs, '6', 0)
-label_source = dataset_source.labels
-data_target = to_process(dataset_target.docs, '6', 0)
-label_target = dataset_target.labels
+data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.8, random_state=42)
+data_source = to_process(data_source, '6', 0)
+#label_source = dataset_source.labels
+
+data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.8, random_state=42)
+data_target = to_process(data_target, '6', 0)
+#label_target = dataset_target.labels
 
 vocabulary_source = get_vocabulary(data_source)
 vocab_source, scores_source = get_senti_representation(vocabulary_source, True)
@@ -71,7 +78,7 @@ for i in range(len(vocab_target)):
 #    print(text)
 
 # --------------------------------- feature selection ---------------------------------------
-print("Feature selection...")
+print("Feature selection 1...")
 cv_source = CountVectorizer(max_df=0.95, min_df=2, max_features=10000)
 x_source = cv_source.fit_transform(to_string(data_source))
 
@@ -200,7 +207,7 @@ for i in range(len(wclusters_source)):
         avg_tf, idf = get_average_tfidf(wclusters_source[i][j], data_source)
         sent = sclusters_source[i][j]
         sent_value = sent[0] + (-1 * sent[1])
-        alsent = avg_tf * sent_value * idf
+        alsent = avg_tf * idf
 
         aux.append(alsent)
 
@@ -223,18 +230,19 @@ print(len(sentcluster_target))
 # -------------------------------- grouping features ---------------------------------------------
 print("Linking features")
 grouped_features = {}
-print(grouped_s)
+# print(grouped_s)
 for i in range(len(grouped_s)):
 
-    print(i, len(wclusters_source), len(wclusters_target[grouped_t[i]]))
+    print(i, len(wclusters_source[grouped_s[i]]), len(wclusters_target[grouped_t[i]]))
+
     for j in range(len(wclusters_source[grouped_s[i]])):
-        print(len())
+        # print(len())
         if wclusters_source[grouped_s[i]][j] not in features_source:
             index = -1
             min = np.inf
 
             for k in range(len(wclusters_target[grouped_t[i]])):
-                #print(i, j, k)
+                # print(i, j, k)
                 if wclusters_target[grouped_t[i]][k] not in features_source and \
                         wclusters_target[grouped_t[i]][k] not in grouped_features:
                     dist = abs(sentcluster_source[grouped_s[i]][j] - sentcluster_target[grouped_t[i]][k])
@@ -250,3 +258,94 @@ for i in range(len(grouped_s)):
                                                                           wclusters_target[grouped_t[i]][index]
 
 print(grouped_features)
+
+# --------------------------------- substitute in datasets ------------------------------------
+print("substituting")
+for i in range(len(data_source)):
+    for j in range(len(data_source[i])):
+        if data_source[i][j] in grouped_features:
+            data_source[i][j] = grouped_features[data_source[i][j]]
+
+for i in range(len(data_target)):
+    for j in range(len(data_target[i])):
+        if data_target[i][j] in grouped_features:
+            data_target[i][j] = grouped_features[data_target[i][j]]
+
+print(data_source)
+print(data_target)
+
+# --------------------------------- feature selection ---------------------------------------
+aux = list(dict.fromkeys(grouped_features.values()))
+vocabulary_aux = features_source
+
+for item in aux:
+    vocabulary_aux.append(item)
+
+print(len(vocabulary_aux))
+
+print("Feature selection 2...")
+cv_source = CountVectorizer(max_df=0.95, min_df=2, max_features=10000, vocabulary=vocabulary_aux)
+x_source = cv_source.fit_transform(to_string(data_source))
+
+chi_stats, p_vals = chi2(x_source, label_source)
+chi_res = sorted(list(zip(cv_source.get_feature_names(), chi_stats)),
+                 key=lambda x: x[1], reverse=True)[0:10000]
+
+features = []
+for chi in chi_res:
+    features.append(chi[0])
+
+'''
+aux = []
+for feature in features:
+    if feature in vocab_target:
+        aux.append(feature)
+
+features = aux
+'''
+print('number of features = ', len(features))
+
+print(features)
+# ------------------------------------ tf-idf -----------------------------------------------
+cv = TfidfVectorizer(smooth_idf=True, norm='l1', vocabulary=vocabulary_aux)
+x_train = cv.fit_transform(to_string(data_source))
+x_test = cv.fit_transform(to_string(data_target))
+
+#  -------------------------------------- classifying  ---------------------------------------
+print("classifying")
+'''
+mlp = MLPClassifier(activation='relu', alpha=1e-05, batch_size='auto',
+                    beta_1=0.9, beta_2=0.999, early_stopping=False,
+                    epsilon=1e-08, hidden_layer_sizes=(5, 2),
+                    learning_rate='constant', learning_rate_init=0.001,
+                    max_iter=200, momentum=0.9, n_iter_no_change=10,
+                    nesterovs_momentum=True, power_t=0.5, random_state=1,
+                    shuffle=True, solver='lbfgs', tol=0.0001,
+                    validation_fraction=0.1, verbose=False, warm_start=False)
+print(label_target)
+print(label_source)
+mlp.fit(x_train, label_source)
+predict = mlp.predict(x_test)
+
+precision = f1_score(label_target, predict, average='binary')
+print('Precision:', precision)
+accuracy = accuracy_score(label_target, predict)
+print('Accuracy: ', accuracy)
+recall = recall_score(label_target, predict, average='binary')
+print('Recall: ', recall)
+confMatrix = confusion_matrix(label_target, predict)
+print('Confusion matrix: \n', confMatrix)
+'''
+classifier = LogisticRegression()
+classifier.fit(x_train, label_source)
+predict = classifier.predict(x_test)
+
+precision = f1_score(label_target, predict, average='binary')
+print('Precision:', precision)
+accuracy = accuracy_score(label_target, predict)
+print('Accuracy: ', accuracy)
+recall = recall_score(label_target, predict, average='binary')
+print('Recall: ', recall)
+confMatrix = confusion_matrix(label_target, predict)
+print('Confusion matrix: \n', confMatrix)
+
