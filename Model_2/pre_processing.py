@@ -9,7 +9,7 @@ from nltk.corpus import stopwords, wordnet
 # Reading stop-words
 stop_words = set(stopwords.words('english'))
 # Loading spacy's model
-nlp = spacy.load('en')
+nlp = spacy.load('en_core_web_sm')
 # Punctuation's list
 punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 # Negation words

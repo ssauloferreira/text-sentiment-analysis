@@ -1,6 +1,9 @@
 import pickle
 
 import numpy as np
+from keras import Sequential
+from keras.layers import Dense, Activation, Dropout
+from keras.utils import np_utils
 from scipy.spatial import distance
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -26,9 +29,17 @@ def to_string(lists):
 
 
 nfeature = 8000
-n = 200
+n = 300
 src = 'books'
 tgt = 'electronics'
+maxlen = 500
+batch_size = 32
+filters = 250
+kernel_size = 5
+hidden_dims = 250
+epochs = 3
+nb_epoch_t = 50
+_ = None
 
 with open('Datasets/dataset_' + src, 'rb') as fp:
     dataset_source = pickle.load(fp)
@@ -37,11 +48,11 @@ with open('Datasets/dataset_' + tgt, 'rb') as fp:
     dataset_target = pickle.load(fp)
 
 # ---------------------------------- preprocessing -------------------------------------------
-data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.8, random_state=42)
+data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.0, random_state=42)
 data_source = to_process(data_source, '6', 0)
 #label_source = dataset_source.labels
 
-data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.8, random_state=42)
+data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.0, random_state=42)
 data_target = to_process(data_target, '6', 0)
 #label_target = dataset_target.labels
 
@@ -271,8 +282,8 @@ for i in range(len(data_target)):
         if data_target[i][j] in grouped_features:
             data_target[i][j] = grouped_features[data_target[i][j]]
 
-print(data_source)
-print(data_target)
+#print(data_source)
+#print(data_target)
 
 # --------------------------------- feature selection ---------------------------------------
 aux = list(dict.fromkeys(grouped_features.values()))
@@ -335,7 +346,7 @@ recall = recall_score(label_target, predict, average='binary')
 print('Recall: ', recall)
 confMatrix = confusion_matrix(label_target, predict)
 print('Confusion matrix: \n', confMatrix)
-'''
+
 classifier = LogisticRegression()
 classifier.fit(x_train, label_source)
 predict = classifier.predict(x_test)
@@ -348,3 +359,25 @@ recall = recall_score(label_target, predict, average='binary')
 print('Recall: ', recall)
 confMatrix = confusion_matrix(label_target, predict)
 print('Confusion matrix: \n', confMatrix)
+'''
+y_train = np_utils.to_categorical(label_target, 2)
+y_test = np_utils.to_categorical(label_source, 2)
+
+model = Sequential()
+model.add(Dense(1000, input_shape=(len(vocabulary_aux),)))
+model.add(Activation('relu'))
+model.add(Dropout(0.5))
+model.add(Dense(500))
+model.add(Activation('relu'))
+model.add(Dropout(0.5))
+model.add(Dense(50))
+model.add(Activation('relu'))
+model.add(Dropout(0.5))
+model.add(Dense(2))
+model.add(Activation('softmax'))
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
+
+print(model.summary())
+
+model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs,verbose=1)
+model.evaluate(x_test, y_test, verbose=1, batch_size=batch_size)
