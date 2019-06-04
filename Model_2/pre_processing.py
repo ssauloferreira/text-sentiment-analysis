@@ -4,10 +4,12 @@ import spacy
 from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import stopwords, wordnet
 
+# python -m spacy download en
+
 # Reading stop-words
 stop_words = set(stopwords.words('english'))
 # Loading spacy's model
-nlp = spacy.load('en_core_web_sm')
+nlp = spacy.load('en')
 # Punctuation's list
 punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 # Negation words
