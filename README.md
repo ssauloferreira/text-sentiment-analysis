@@ -5,6 +5,17 @@
 ### 1. Escolha dos datasets
 Os datasets utilizados são do conjunto Amazon Customer Review aplamente explorado em pesquisas da área de Cross-Domain Sentiment Analysis. No geral, são compostos por quatro domínios: livros, eletrônicos, cozinha e filmes; com 2000 amostras de texto cada um, com classificação binária, sendo 1000 positivas e 1000 negativas.
 
+### 2. Pré-processamento
+O processamento dos dados consiste nos seguintes passos:
+
+1. Tokenization
+2. Lemmatization
+3. Negação de palavra
+4. Remoção de features raras
+5. Remoção de features neutras (de acordo com o *sentiment value*)
+6. Filtragem de POS (verbos, advérbios, susbtantivos e adjetivos)
+7. Atribuição de POS (i.e. book = book_n)
+
 ### 3. Representação por SentiWordNet
 A biblioteca SentiWordNet, complemento da WordNet, foi utilizada para a representação do *sentiment value* de cada feature resultante do pré-processamento. Para cada palavra passada para a função, é retornada um conjunto de scores, um para cada *synset* da palavra.
 Um *synset* é uma representação de uma palavra em um determinado contexto, tendo em vista que a mesma palavra pode ser utilizada em diferentes qualificações semânticas em uma sentença. Como não se sabe qual o *synset* que representa aquela palavra no contexto que ela está inserida no texto pré-processado, foram filtrados apenas os *synsets* do mesmo POS da feature. Por exemplo:
