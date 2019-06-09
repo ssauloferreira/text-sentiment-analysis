@@ -1,4 +1,4 @@
-## A Approach About Cluster of Features for Cross-Domain Sentiment Classification
+## An Approach About Cluster of Features for Cross-Domain Sentiment Classification
 #### Saulo Lucas Gomes Ferreira
 
 
