@@ -1,5 +1,4 @@
 import nltk
-import numpy as np
 import spacy
 from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import stopwords, wordnet
@@ -143,8 +142,10 @@ def to_process(docs, pos, minimum_tf):
         elif pos == '5':
             for word in pos_tags:
                 if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS' or word[1] == 'RB' or \
-                        word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    result_pos.append(word[0])
+                        word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS' or word[1] == 'VB' or word[1] == 'VBD' \
+                        or word[1] == 'VBG' or word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ':
+                    aux = word[0] + '_' + resume[word[1]]
+                    result_pos.append(aux)
 
         elif pos == '2':
             for word in pos_tags:
@@ -196,7 +197,7 @@ def get_senti_representation(vocabulary, pos_form=False):
         for i in range(len(item)):
             if item[i] == '_':
                 word = item[:i]
-                pos = item[i+1:]
+                pos = item[i + 1:]
 
         syns = list(swn.senti_synsets(word))
         if syns.__len__() > 0:
@@ -210,19 +211,16 @@ def get_senti_representation(vocabulary, pos_form=False):
                     obj_score.append(syn.obj_score())
 
             if len(pos_score) > 0:
-                scores.append(
-                    [round(max(pos_score), 3),
-                     round(max(neg_score), 3),
-                     round(max(obj_score), 3)]
-                )
-            else:
-                scores.append([0, 0, 0])
-        else:
-            scores.append([0, 0, 0])
+                aux = [round(sum(pos_score), 3),
+                       round(sum(neg_score), 3),
+                       round(sum(obj_score), 3)]
 
-        if pos_form:
-            vocab.append(word + '_' + pos)
-        else:
-            vocab.append(word)
+                if True:
+                    scores.append(aux)
+
+                    if pos_form:
+                        vocab.append(word + '_' + pos)
+                    else:
+                        vocab.append(word)
 
     return vocab, scores

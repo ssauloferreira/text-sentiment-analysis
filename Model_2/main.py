@@ -4,14 +4,10 @@ import numpy as np
 from keras import Sequential
 from keras.layers import Dense, Activation, Dropout
 from keras.utils import np_utils
-from scipy.spatial import distance
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.feature_selection import chi2
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, accuracy_score, recall_score, confusion_matrix
 from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
 
 from pre_processing import to_process, get_vocabulary, get_senti_representation
 
@@ -29,7 +25,7 @@ def to_string(lists):
 
 
 nfeature = 8000
-n = 300
+n = 500
 src = 'books'
 tgt = 'electronics'
 maxlen = 500
@@ -48,23 +44,21 @@ with open('Datasets/dataset_' + tgt, 'rb') as fp:
     dataset_target = pickle.load(fp)
 
 # ---------------------------------- preprocessing -------------------------------------------
-data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.0, random_state=42)
-data_source = to_process(data_source, '6', 0)
-#label_source = dataset_source.labels
+data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.0,
+                                                   random_state=42)
+data_source = to_process(data_source, '5', 5)
 
-data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.0, random_state=42)
-data_target = to_process(data_target, '6', 0)
-#label_target = dataset_target.labels
+data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.0,
+                                                   random_state=42)
+data_target = to_process(data_target, '5', 5)
 
+# ----------------------------------- clustering ---------------------------------------------
+print("Clustering...")
 vocabulary_source = get_vocabulary(data_source)
 vocab_source, scores_source = get_senti_representation(vocabulary_source, True)
 vocabulary_target = get_vocabulary(data_target)
 vocab_target, scores_target = get_senti_representation(vocabulary_target, True)
 
-# ----------------------------------- clustering ---------------------------------------------
-print("Clustering...")
-# clustering = DBSCAN(eps=1, min_samples=2)
-# clustering = SpectralClustering(n_clusters=n, assign_labels="discretize", random_state=0)
 clustering_source = KMeans(n_clusters=n, random_state=0)
 clustering_source.fit(scores_source)
 clustering_target = KMeans(n_clusters=n, random_state=0)
@@ -85,32 +79,20 @@ for i in range(len(vocab_target)):
     wclusters_target[aux].append(vocab_target[i])
     sclusters_target[aux].append(scores_target[i])
 
-# for text in data_source:
-#    print(text)
-
 # --------------------------------- feature selection ---------------------------------------
-print("Feature selection 1...")
-cv_source = CountVectorizer(max_df=0.95, min_df=2, max_features=10000)
-x_source = cv_source.fit_transform(to_string(data_source))
 
-chi_stats, p_vals = chi2(x_source, label_source)
-chi_res = sorted(list(zip(cv_source.get_feature_names(), chi_stats)),
-                 key=lambda x: x[1], reverse=True)[0:nfeature]
 
-features_source = []
-for chi in chi_res:
-    features_source.append(chi[0])
+common = []
 
-aux = []
+print("Number of features source:", len(vocab_source))
+print("Number of features target:", len(vocab_target))
 
-print(len(features_source))
-print(len(vocab_target))
-
-for feature in features_source:
+for feature in vocab_source:
     if feature in vocab_target:
-        aux.append(feature)
+        common.append(feature)
 
-features_source = aux
+features_source = common
+print("Number of common features: ", len(common))
 # --------------------------------- agrupando clusters --------------------------------------
 print("Linking clusters")
 grouped_s = []
@@ -141,7 +123,7 @@ for i in range(n):
         grouped_s.append(i)
         grouped_t.append(index)
 
-        print(i, ' ', index, ': ', sim)
+        # print(i, ' ', index, ': ', sim)
 '''
 avg_cluster_src = []
 avg_cluster_tgt = []
@@ -180,14 +162,14 @@ for i in range(n):
 
     grouped_s.append(i)
     grouped_t.append(index)
-'''
+
 for n in range(len(grouped_s)):
     print('group ', n)
     print(wclusters_source[grouped_s[n]])
     print(wclusters_target[grouped_t[n]])
 
     print('\n\n')
-
+'''
 # ALSENT (Average-Lexical-SentiWordNet-TFIDF):
 # Average TF score = average of the term frequence in the documents it occurs
 # sentiment score = pos_score - (neg_score * -1)
@@ -197,10 +179,11 @@ for n in range(len(grouped_s)):
 print("ALSENT...")
 
 
-def get_average_tfidf(feature, data_source):
+def get_average_tfidf(feature, data):
     total = []
     count_idf = 0
-    for text in data_source:
+    idf = None
+    for text in data:
         count = 0
         for word in text:
             if word == feature:
@@ -208,7 +191,11 @@ def get_average_tfidf(feature, data_source):
         if count > 0:
             count_idf += 1
             total.append(count)
-    return np.mean(total), np.log(len(data_source) / count_idf)
+    try:
+        idf = np.log(len(data) / count_idf)
+    except:
+        print(feature)
+    return np.mean(total), idf
 
 
 sentcluster_source = []
@@ -217,7 +204,7 @@ for i in range(len(wclusters_source)):
     for j in range(len(wclusters_source[i])):
         avg_tf, idf = get_average_tfidf(wclusters_source[i][j], data_source)
         sent = sclusters_source[i][j]
-        sent_value = sent[0] + (-1 * sent[1])
+        sent_value = sent[0] - sent[1]
         alsent = avg_tf * idf
 
         aux.append(alsent)
@@ -244,7 +231,7 @@ grouped_features = {}
 # print(grouped_s)
 for i in range(len(grouped_s)):
 
-    print(i, len(wclusters_source[grouped_s[i]]), len(wclusters_target[grouped_t[i]]))
+    # print(i, len(wclusters_source[grouped_s[i]]), len(wclusters_target[grouped_t[i]]))
 
     for j in range(len(wclusters_source[grouped_s[i]])):
         # print(len())
@@ -272,55 +259,47 @@ print(grouped_features)
 
 # --------------------------------- substitute in datasets ------------------------------------
 print("substituting")
-for i in range(len(data_source)):
-    for j in range(len(data_source[i])):
-        if data_source[i][j] in grouped_features:
-            data_source[i][j] = grouped_features[data_source[i][j]]
+data_source_aux = data_source.copy()
+for i in range(len(data_source_aux)):
+    for j in range(len(data_source_aux[i])):
+        if data_source_aux[i][j] in grouped_features:
+            data_source_aux[i][j] = grouped_features[data_source_aux[i][j]]
 
-for i in range(len(data_target)):
-    for j in range(len(data_target[i])):
-        if data_target[i][j] in grouped_features:
-            data_target[i][j] = grouped_features[data_target[i][j]]
+data_target_aux = data_target.copy()
+for i in range(len(data_target_aux)):
+    for j in range(len(data_target_aux[i])):
+        if data_target_aux[i][j] in grouped_features:
+            data_target_aux[i][j] = grouped_features[data_target_aux[i][j]]
 
-#print(data_source)
-#print(data_target)
+# print(data_source)
+# print(data_target)
 
 # --------------------------------- feature selection ---------------------------------------
 aux = list(dict.fromkeys(grouped_features.values()))
-vocabulary_aux = features_source
-
+vocabulary_aux = features_source.copy()
+print("Number of features conected: ", len(aux))
 for item in aux:
     vocabulary_aux.append(item)
 
-print(len(vocabulary_aux))
+print("Final vocabulary: ", len(vocabulary_aux))
 
+'''
 print("Feature selection 2...")
 cv_source = CountVectorizer(max_df=0.95, min_df=2, max_features=10000, vocabulary=vocabulary_aux)
-x_source = cv_source.fit_transform(to_string(data_source))
+x_source = cv_source.fit_transform(to_string(data_source_aux))
 
 chi_stats, p_vals = chi2(x_source, label_source)
 chi_res = sorted(list(zip(cv_source.get_feature_names(), chi_stats)),
-                 key=lambda x: x[1], reverse=True)[0:10000]
+                 key=lambda x: x[1], reverse=True)[0:5000]
 
 features = []
 for chi in chi_res:
     features.append(chi[0])
-
 '''
-aux = []
-for feature in features:
-    if feature in vocab_target:
-        aux.append(feature)
-
-features = aux
-'''
-print('number of features = ', len(features))
-
-print(features)
 # ------------------------------------ tf-idf -----------------------------------------------
 cv = TfidfVectorizer(smooth_idf=True, norm='l1', vocabulary=vocabulary_aux)
-x_train = cv.fit_transform(to_string(data_source))
-x_test = cv.fit_transform(to_string(data_target))
+x_train = cv.fit_transform(to_string(data_source_aux))
+x_test = cv.fit_transform(to_string(data_target_aux))
 
 #  -------------------------------------- classifying  ---------------------------------------
 print("classifying")
@@ -377,7 +356,9 @@ model.add(Dense(2))
 model.add(Activation('softmax'))
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
 
-print(model.summary())
+print(str(n), "clusters")
 
-model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs,verbose=1)
-model.evaluate(x_test, y_test, verbose=1, batch_size=batch_size)
+model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=0)
+scores = model.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
+print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
+print("\n-------------------------------------------------------------\n")
