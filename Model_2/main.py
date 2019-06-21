@@ -10,7 +10,7 @@ from sklearn.feature_selection import chi2
 from sklearn.model_selection import train_test_split
 
 from neural_networks import convL, mlp
-from pre_processing import to_process, get_vocabulary, get_senti_representation
+from pre_processing import to_process, get_vocabulary, get_senti_representation, alsent
 
 
 def to_string(lists):
@@ -26,9 +26,9 @@ def to_string(lists):
 
 
 nfeature = 8000
-n = 400
+n = 20
 src = 'dvd'
-tgt = 'books'
+tgt = 'electronics'
 maxlen = 500
 batch_size = 32
 filters = 250
@@ -45,22 +45,26 @@ with open('Datasets/dataset_' + tgt, 'rb') as fp:
     dataset_target = pickle.load(fp)
 
 # ---------------------------------- preprocessing -------------------------------------------
-data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.0,
+data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.1,
                                                    random_state=42)
-data_source = to_process(data_source, '6', 3)
+data_source = to_process(data_source, '6', 0)
 
-data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.0,
+data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels, test_size=0.1,
                                                    random_state=42)
-data_target = to_process(data_target, '6', 3)
+data_target = to_process(data_target, '6', 0)
 
 # ----------------------------------- clustering ---------------------------------------------
 print("Clustering...")
 vocabulary_source = get_vocabulary(data_source)
 print('Vocabulary source:', len(vocabulary_source))
-vocab_source, scores_source = get_senti_representation(vocabulary_source, True)
+vocab_source, scores_source, dicti_source = get_senti_representation(vocabulary_source, True)
 vocabulary_target = get_vocabulary(data_target)
 print('Vocabulary target:', len(vocabulary_target))
-vocab_target, scores_target = get_senti_representation(vocabulary_target, True)
+vocab_target, scores_target, dicti_target = get_senti_representation(vocabulary_target, True)
+
+dicti = {}
+dicti.update(dicti_source)
+dicti.update(dicti_target)
 
 clustering_source = KMeans(n_clusters=n, random_state=0)
 clustering_source.fit(scores_source)
@@ -311,8 +315,10 @@ num_words = len(features)
 print('Final features: ', features)
 # ------------------------------------ tf-idf -----------------------------------------------
 cv = TfidfVectorizer(smooth_idf=True, norm='l1', vocabulary=features)
-x_train = cv.fit_transform(to_string(data_source_aux))
-x_test = cv.fit_transform(to_string(data_target_aux))
+x_train = alsent(dataset=data_source_aux, dicti=dicti, features=features) # cv.fit_transform(to_string(data_source_aux))
+x_test = alsent(dataset=data_target_aux, dicti=dicti, features=features) # cv.fit_transform(to_string(data_target_aux))
+
+print(len(x_train), len(x_train[0]))
 # tokenizer = Tokenizer(num_words=num_words)
 # tokenizer.fit_on_texts(data_source_aux)
 #
