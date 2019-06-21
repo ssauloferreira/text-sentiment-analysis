@@ -130,8 +130,7 @@ def to_process(docs, pos, minimum_tf):
 
         if pos == '3':
             for word in pos_tags:
-                if word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or \
-                        word[1] == 'NNPS':
+                if word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS':
                     result_pos.append(word[0])
 
         elif pos == '1':
