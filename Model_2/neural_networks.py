@@ -27,15 +27,19 @@ def convL(input_shape, embedding_size, input_len):
     return model
 
 
-def mlp(input_shape):
+def mlp(input_shape, num_layers=1000):
+    a = num_layers
+    b = int(num_layers/2)
+    c = int(num_layers/10)
+
     model = Sequential()
-    model.add(Dense(1000, input_shape=(input_shape,)))
+    model.add(Dense(a, input_shape=(input_shape,)))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(500))
+    model.add(Dense(b))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(50))
+    model.add(Dense(c))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(2))

@@ -128,12 +128,14 @@ def to_process(docs, pos, minimum_tf):
         if pos == '3':
             for word in pos_tags:
                 if word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS':
-                    result_pos.append(word[0])
+                    aux = word[0] + '_' + resume[word[1]]
+                    result_pos.append(aux)
 
         elif pos == '1':
             for word in pos_tags:
                 if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS':
-                    result_pos.append(word[0])
+                    aux = word[0] + '_' + resume[word[1]]
+                    result_pos.append(aux)
 
         elif pos == '5':
             for word in pos_tags:
@@ -146,13 +148,15 @@ def to_process(docs, pos, minimum_tf):
         elif pos == '2':
             for word in pos_tags:
                 if word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    result_pos.append(word[0])
+                    aux = word[0] + '_' + resume[word[1]]
+                    result_pos.append(aux)
 
         elif pos == '4':
             for word in pos_tags:
                 if word[1] == 'VB' or word[1] == 'VBD' or word[1] == 'VBG' or \
                         word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ':
-                    result_pos.append(word[0])
+                    aux = word[0] + '_' + resume[word[1]]
+                    result_pos.append(aux)
         elif pos == '6':
             for word in pos_tags:
                 if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS' or \
