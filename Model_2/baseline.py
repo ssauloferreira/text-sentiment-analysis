@@ -1,10 +1,12 @@
 import pickle
 
+import xlsxwriter
 from keras import Sequential
 from keras.layers import Dense, Activation, Dropout
 from keras.utils import np_utils
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import f1_score, confusion_matrix, recall_score, accuracy_score
 
 nfeature = 8000
 n = 500
@@ -18,49 +20,37 @@ hidden_dims = 250
 epochs = 3
 nb_epoch_t = 50
 
-# book = xlsxwriter.Workbook('Sheets/baseline1.xls')
-# sheet = book.add_worksheet('1')
+for src in ['books', 'dvd', 'electronics', 'kitchen']:
+    for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
+        if src != tgt:
+            with open('Datasets/dataset_' + src, 'rb') as fp:
+                dataset_source = pickle.load(fp)
 
-i = 1
-for src in ['books', 'electronics', 'dvd', 'kitchen']:
-    with open('Datasets/dataset_' + src, 'rb') as fp:
-        dataset_source = pickle.load(fp)
+            with open('Datasets/dataset_' + tgt, 'rb') as fp:
+                dataset_target = pickle.load(fp)
 
-    x_train, x_test, y_train, y_test = train_test_split(dataset_source.docs, dataset_source.labels, test_size=0.3,
-                                                               random_state=42)
+            cv = TfidfVectorizer(smooth_idf=True, norm='l1', max_features=2000)
+            x_train = cv.fit_transform(dataset_source.docs)
+            x_test = cv.transform(dataset_target.docs)
 
-    # print(x_train)
-    # print(y_train)
+            y_train = np_utils.to_categorical(dataset_source.labels, 2)
+            y_test = np_utils.to_categorical(dataset_target.labels, 2)
 
-    cv = TfidfVectorizer(smooth_idf=True, norm='l1', max_features=5000)
-    x_train = cv.fit_transform(x_train)
-    x_test = cv.fit_transform(x_test)
+            model = Sequential()
+            model.add(Dense(1000, input_shape=(2000,)))
+            model.add(Activation('relu'))
+            model.add(Dropout(0.5))
+            model.add(Dense(500))
+            model.add(Activation('relu'))
+            model.add(Dropout(0.5))
+            model.add(Dense(50))
+            model.add(Activation('relu'))
+            model.add(Dropout(0.5))
+            model.add(Dense(2))
+            model.add(Activation('softmax'))
+            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
 
-    y_train = np_utils.to_categorical(y_train, 2)
-    y_test = np_utils.to_categorical(y_test, 2)
-
-    model = Sequential()
-    model.add(Dense(1000, input_shape=(5000,)))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(500))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(50))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(2))
-    model.add(Activation('softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-
-    model.fit(x_train, y_train, batch_size=batch_size, epochs=2, verbose=0)
-    scores = model.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
-    print(src)
-    print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
-
-    # sheet.write(i, 0, src)
-    # sheet.write(0, j, tgt)
-    # sheet.write(i, j, scores[1] * 100)
-
-i += 1
-# book.close()
+            print(src, tgt)
+            model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=0)
+            scores = model.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
+            print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
