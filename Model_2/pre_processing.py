@@ -5,6 +5,24 @@ from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import stopwords, wordnet
 
 # python -m spacy download en
+#
+# adjectives, verbs, nouns, adverbs
+#
+# 0001 = adverbs
+# 0010 = nouns
+# 0011 = nouns, adverbs
+# 0100 = verbs
+# 0101 = verbs, adverbs
+# 0110 = verbs, nouns
+# 0111 = verbs, nouns, adverbs
+# 1000 = adjectives
+# 1001 = adjectives, adverbs
+# 1010 = adjectives, nouns
+# 1011 = adjectives, nouns, adverbs
+# 1100 = adjectives, verbs
+# 1101 = adjectives, verbs, adverbs
+# 1110 = adjectives, verbs, nouns
+# 1111 = adjectives, verbs, nouns, adverbs
 
 # Reading stop-words
 stop_words = set(stopwords.words('english'))
@@ -33,6 +51,11 @@ resume = {
     'RBR': 'r',
     'RBS': 'r'
 }
+
+def resume_pos(param):
+    if param in resume:
+        return resume[param]
+    return None
 
 
 def get_wordnet_pos(word):
@@ -102,6 +125,18 @@ def negation_processing(text):
 
 def to_process(docs, pos, minimum_tf):
     new_docs = []
+    pos_filter = []
+
+    for i in range(4):
+        if pos[i] == '1':
+            if i == 0:
+                pos_filter.append('a')
+            elif i == 1:
+                pos_filter.append('v')
+            elif i == 2:
+                pos_filter.append('n')
+            else:
+                pos_filter.append('r')
 
     for text in docs:
 
@@ -125,51 +160,11 @@ def to_process(docs, pos, minimum_tf):
         pos_tags = tokens_filtered
         result_pos = []
 
-        if pos == '3':
-            for word in pos_tags:
-                if word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS':
-                    aux = word[0] + '_' + resume[word[1]]
-                    result_pos.append(aux)
-
-        elif pos == '1':
-            for word in pos_tags:
-                if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS':
-                    aux = word[0] + '_' + resume[word[1]]
-                    result_pos.append(aux)
-
-        elif pos == '5':
-            for word in pos_tags:
-                if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS' or word[1] == 'RB' or \
-                        word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS' or word[1] == 'VB' or word[1] == 'VBD' \
-                        or word[1] == 'VBG' or word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ':
-                    aux = word[0] + '_' + resume[word[1]]
-                    result_pos.append(aux)
-
-        elif pos == '2':
-            for word in pos_tags:
-                if word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    aux = word[0] + '_' + resume[word[1]]
-                    result_pos.append(aux)
-
-        elif pos == '4':
-            for word in pos_tags:
-                if word[1] == 'VB' or word[1] == 'VBD' or word[1] == 'VBG' or \
-                        word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ':
-                    aux = word[0] + '_' + resume[word[1]]
-                    result_pos.append(aux)
-        elif pos == '6':
-            for word in pos_tags:
-                if word[1] == 'JJ' or word[1] == 'JJR' or word[1] == 'JJS' or \
-                        word[1] == 'VB' or word[1] == 'VBD' or word[1] == 'VBG' or \
-                        word[1] == 'VBN' or word[1] == 'VBP' or word[1] == 'VBZ' or \
-                        word[1] == 'NN' or word[1] == 'NNS' or word[1] == 'NNP' or word[1] == 'NNPS' or \
-                        word[1] == 'RB' or word[1] == 'RBR' or word[1] == 'RBS':
-                    aux = word[0] + '_' + resume[word[1]]
-                    result_pos.append(aux)
-        else:
-            for word in pos_tags:
-                aux = word[0] + '_' + resume[word[1]]
-                result_pos.append(aux)
+        for word in pos_tags:
+            aux = resume_pos(word[1])
+            if aux is not None:
+                if aux in pos_filter:
+                    result_pos.append(word[0] + "_" + aux)
 
         new_docs.append(result_pos)
 

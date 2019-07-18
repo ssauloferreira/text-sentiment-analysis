@@ -8,8 +8,8 @@ def convL(input_shape, embedding_size, input_len):
     kernel_size = 5
 
     classification_layers = [
-        Embedding(input_dim=input_shape, output_dim=embedding_size, input_length=input_len),
-        Conv1D(input_shape=(input_len, embedding_size), filters=filters, kernel_size=kernel_size, padding='valid',
+        Embedding(4000, 200, weights=[]),
+        Conv1D(filters=filters, kernel_size=kernel_size, padding='valid',
                activation='relu',
                strides=1),
         LSTM(100),

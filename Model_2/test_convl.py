@@ -1,102 +1,49 @@
 import pickle
 
-from keras import Sequential
-from keras.layers import Conv1D, LSTM, Dropout, Dense, Activation, Flatten
-from keras.optimizers import RMSprop
-from keras.regularizers import l2
-from keras.utils import np_utils
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import train_test_split
-from pre_processing import to_process
+import spacy
+from gensim.models import Word2Vec
 
-
-def to_string(lists):
+'''
+def to_process(docs):
     new_docs = []
+    nlp = spacy.load('en_core_web_sm')
 
-    for item in lists:
-        text = ""
-        for word in item:
-            text = text + " " + word
-        new_docs.append(text)
+    for text in docs:
+
+        # Tokenizing & lemmatization
+        tokens = []
+        doc = nlp(text)
+        for word in doc:
+            if word.lemma_ != '-PRON-':
+                tokens.append(word.lemma_)
+
+        new_docs.append(tokens)
 
     return new_docs
 
-
 with open('Datasets/dataset_books', 'rb') as fp:
-    dataset_source = pickle.load(fp)
+    b = pickle.load(fp)
 
-data_source, data_target, label_source, label_target = train_test_split(dataset_source.docs, dataset_source.labels,
-                                                                        test_size=0.3, random_state=42)
-data_source = to_process(data_source, '6', 0)
-data_target = to_process(data_target, '6', 0)
+with open('Datasets/dataset_electronics', 'rb') as fp:
+    e = pickle.load(fp)
 
-print(len(data_source))
-print(len(data_target))
+with open('Datasets/dataset_dvd', 'rb') as fp:
+    d = pickle.load(fp)
 
-cv = TfidfVectorizer(smooth_idf=True, norm='l1', max_features=3000)
-x_train = cv.fit_transform(to_string(data_source))
-x_test = cv.fit_transform(to_string(data_target))
+with open('Datasets/dataset_kitchen', 'rb') as fp:
+    k = dataset_target = pickle.load(fp)
 
-label_target = np_utils.to_categorical(label_target, 2)
-label_source = np_utils.to_categorical(label_source, 2)
+data = b.docs + e.docs
+data = data + d.docs
+data = data + k.docs
 
-maxlen = 500
-batch_size = 32
-filters = 250
-kernel_size = 5
-hidden_dims = 250
-epochs = 3
-nb_epoch_t = 50
-_ = None
+data = to_process(data)
 
-print(x_train.shape)
-x_train = x_train.reshape((1400, 1, 3000))
-print(x_train.shape)
+model = Word2Vec(sentences=data, size=200, window=10, min_count=2, workers=10, iter=10)
+
+model.save('Datasets/emb.model')
 
 '''
-classification_layers = [
-    Conv1D(input_shape=(3000, 1), filters=filters, kernel_size=kernel_size, padding='valid', activation='relu',
-           strides=1),
-    LSTM(100),
-    Dropout(0.25),
-    Dense(1, kernel_regularizer=l2(3)),
-    Activation('sigmoid')
-]
 
-print('Build model...')
-model = Sequential()
-
-for l in classification_layers:
-    model.add(l)
-
-rmsprop = RMSprop(lr=0.0005, decay=1e-6, rho=0.9)
-model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=["accuracy"])
-model.fit(x_train, label_source, batch_size=batch_size,
-          epochs=nb_epoch_t, validation_split=0.3)
-score = model.evaluate(x_test, label_target, batch_size=batch_size, verbose=1)
-
-print('new dataset Test score:', score[0])
-print('new dataset Test accuracy:', score[1])
-'''
-
-# Deep Layer Model building in Keras
-
-# del model
-model = Sequential()
-model.add(Dense(1000, input_shape=(3000,)))
-model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(500))
-model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(50))
-model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(2))
-model.add(Activation('softmax'))
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-
-print(model.summary())
-
-model.fit(x_train, label_source, batch_size=batch_size, epochs=epochs,verbose=1)
+model = Word2Vec.load('Datasets/emb.model')
 
