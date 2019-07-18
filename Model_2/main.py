@@ -28,7 +28,8 @@ def to_string(lists):
 
     return new_docs
 
-
+vocabulary_size = 8000
+embedding_size = 200
 text_rep = 'embeddings'
 pos = '0001'
 num_layers = 200
@@ -357,25 +358,10 @@ for q in range(1, 15):
                 if '_' in text[a]:
                     text[a] = text[a][:-2]
 
-        tokenizer_source = Tokenizer(num_words=4000)
-        tokenizer_source.fit_on_texts(data_source_aux)
+        tokenizer = Tokenizer(num_words=vocabulary_size)
+        tokenizer.fit_on_texts(data_source_aux + data_target_aux)
 
-        index_to_word_src = {0: 'a'}
-
-        for item in tokenizer_source.word_index:
-            index_to_word_src[tokenizer_source.word_index[item]] = item
-
-        print(index_to_word_src)
-        sequences_src = tokenizer_source.texts_to_sequences(data_source_aux)
-
-        tokenizer_target = Tokenizer(num_words=4000)
-        tokenizer_target.fit_on_texts(data_source_aux)
-
-        index_to_word_tgt = {0: 'a'}
-
-        for item in tokenizer_target.word_index:
-            index_to_word_tgt[tokenizer_target.word_index[item]] = item
-
+        sequences_src = tokenizer.texts_to_sequences(data_source_aux)
         sequences_tgt = tokenizer_target.texts_to_sequences(data_target_aux)
 
         maxlen = 100
@@ -388,21 +374,29 @@ for q in range(1, 15):
         data_source_aux = []
         data_target_aux = []
 
-        for seq in x_train:
-            sequence = []
-            for num in seq:
-                sequence.append(index_to_word_src[num])
-            data_source_aux.append(sequence)
+        embedding_matrix = np.zeros((vocabulary_size, embedding_size))
 
-        for seq in x_test:
-            sequence = []
-            for num in seq:
-                sequence.append(index_to_word_tgt[num])
-            data_target_aux.append(sequence)
+        for word in tokenizer.word_index:
+            i = tokenizer.word_index[word]
+            
+            if '-' in word:
+                aux = word.split('-')
+                aux1 = aux[0]
+                aux2 = aux[1]
 
-        print(data_source_aux[0])
+                if aux1 not in model.wv and aux2 not in model.wv:
+                    embedding_matrix[i] = np.zeros(embedding_size)
+                elif aux1 not in model.wv:
+                    embedding_matrix[i] = model.wv[aux2]
+                else:
+                    embedding_matrix[i] = model.wv[aux1]
+            else:
+                if word in model.wv:
+                    embedding_matrix[i] = model.wv[word]
+                else:
+                    embedding_matrix[i] = np.zeros(embedding_size)
 
-
+        '''
         source_emb = []
         for text in data_source_aux:
             text_emb = []
@@ -470,18 +464,17 @@ for q in range(1, 15):
                     else:
                         text_emb.append(model.wv['a'])
             target_emb.append(text_emb)
+        '''
 
-        print("shape: ", len(source_emb), len(source_emb[0]), len(source_emb[0][0]))
-
-        model = neural_networks.convL(200, 100)
+        convl = neural_networks.convL(vocabulary_size, embedding_size, embedding_matrix)
         y_train = np_utils.to_categorical(label_target, 2)
         y_test = np_utils.to_categorical(label_source, 2)
 
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-        model.fit(source_emb, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
+        convl.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
+        convl.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
 
-        scores = model.evaluate(target_emb, y_test, verbose=0, batch_size=batch_size)
+        scores = convl.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
 
         print("src", src, "tgt", tgt, "num_layers", num_layers, 'pos', pos)
-        print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
+        print("%s: %.2f%%" % (convl.metrics_names[1], scores[1] * 100))
         print("\n-------------------------------------------------------------\n")

@@ -3,12 +3,12 @@ from keras.layers import Conv1D, LSTM, Dropout, Dense, Activation, Embedding
 from keras.regularizers import l2
 
 
-def convL(input_shape, embedding_size, input_len):
+def convL(vocabulary_size embedding_size, embedding_matrix):
     filters = 250
     kernel_size = 5
 
     classification_layers = [
-        Embedding(4000, 200, weights=[]),
+        Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], trainable=True),
         Conv1D(filters=filters, kernel_size=kernel_size, padding='valid',
                activation='relu',
                strides=1),
