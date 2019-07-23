@@ -197,31 +197,32 @@ def get_senti_representation(vocabulary, pos_form=False):
                 word = item[:i]
                 pos = item[i + 1:]
 
-        syns = list(swn.senti_synsets(word))
-        if syns.__len__() > 0:
-            pos_score = []
-            neg_score = []
-            obj_score = []
-            for syn in syns:
-                if pos in syn.synset.name():
-                    pos_score.append(syn.pos_score())
-                    neg_score.append(syn.neg_score())
-                    obj_score.append(syn.obj_score())
+        if True:  #pos == 'v' or pos == 'a':
+            syns = list(swn.senti_synsets(word))
+            if syns.__len__() > 0:
+                pos_score = []
+                neg_score = []
+                obj_score = []
+                for syn in syns:
+                    if pos in syn.synset.name():
+                        pos_score.append(syn.pos_score())
+                        neg_score.append(syn.neg_score())
+                        obj_score.append(syn.obj_score())
 
-            if len(pos_score) > 0:
-                aux = [round(np.mean(pos_score), 3),
-                       round(np.mean(neg_score), 3),
-                       round(np.mean(obj_score), 3)]
+                if len(pos_score) > 0:
+                    aux = [round(np.mean(pos_score), 3),
+                           round(np.mean(neg_score), 3),
+                           round(np.mean(obj_score), 3)]
 
-                if True:
-                    scores.append(aux)
+                    if True:
+                        scores.append(aux)
 
-                    if pos_form:
-                        dicti[word + '_' + pos] = aux
-                        vocab.append(word + '_' + pos)
-                    else:
-                        dicti[word] = aux
-                        vocab.append(word)
+                        if pos_form:
+                            dicti[word + '_' + pos] = aux
+                            vocab.append(word + '_' + pos)
+                        else:
+                            dicti[word] = aux
+                            vocab.append(word)
 
     return vocab, scores, dicti
 

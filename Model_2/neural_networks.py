@@ -1,14 +1,23 @@
 from keras import Sequential
-from keras.layers import Conv1D, LSTM, Dropout, Dense, Activation, Embedding
+from keras.layers import Conv1D, LSTM, Dropout, Dense, Activation, Embedding, MaxPooling1D
 from keras.regularizers import l2
 
+def create_conv_model(vocabulary_size, embedding_size, embedding_matrix):
+    model_conv = Sequential()
+    model_conv.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], trainable=True))
+    model_conv.add(Dropout(0.2))
+    model_conv.add(Conv1D(64, 5, activation='relu'))
+    model_conv.add(MaxPooling1D(pool_size=4))
+    model_conv.add(LSTM(100))
+    model_conv.add(Dense(2, activation='sigmoid'))
+    return model_conv
 
-def convL(vocabulary_size embedding_size, embedding_matrix):
+def convL(vocabulary_size, embedding_size, embedding_matrix):
     filters = 250
     kernel_size = 5
 
     classification_layers = [
-        Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], trainable=True),
+        Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], trainable=False),
         Conv1D(filters=filters, kernel_size=kernel_size, padding='valid',
                activation='relu',
                strides=1),
