@@ -39,23 +39,23 @@ text_rep = 'embeddings'
 pos = '1111'
 num_layers = 200
 nfeature = 8000
-n = 2
+n = 50
 src = 'kitchen'
 tgt = 'electronics'
 maxlen = 500
-batch_size = 32
+batch_size = 64
 filters = 250
 kernel_size = 5
 hidden_dims = 250
-epochs = 4
+epochs = 5
 nb_epoch_t = 50
 _ = None
 
 get_bin = lambda x, n: format(x, 'b').zfill(n)
 
 for src in ['books', 'dvd', 'electronics', 'kitchen']:
-     for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
-         if src != tgt:
+    for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
+        if src != tgt:
             with open('Datasets/dataset_' + src, 'rb') as fp:
                 dataset_source = pickle.load(fp)
 
@@ -470,10 +470,11 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 y_test = np_utils.to_categorical(label_target, 2)
 
                 convl.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-                convl.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=0)
+                convl.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
 
                 scores = convl.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
                 print("%s: %.2f%%" % (convl.metrics_names[1], scores[1] * 100))
 
-            print("src", src, "tgt", tgt, "num_layers", num_layers, 'pos', pos, 'text_representation', text_rep, "n clusters", n)
+            print("src", src, "tgt", tgt, "num_layers", num_layers, 'pos', pos, 'text_representation', text_rep,
+                  "n clusters", n, "epochs", epochs)
             print("\n-------------------------------------------------------------\n")

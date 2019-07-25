@@ -5,10 +5,10 @@ from keras.regularizers import l2
 def create_conv_model(vocabulary_size, embedding_size, embedding_matrix):
     model_conv = Sequential()
     model_conv.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], trainable=True))
-    model_conv.add(Dropout(0.2))
-    model_conv.add(Conv1D(64, 5, activation='relu'))
+    model_conv.add(Conv1D(250, 5, activation='relu', padding='valid', strides=1))
     model_conv.add(MaxPooling1D(pool_size=4))
     model_conv.add(LSTM(100))
+    model_conv.add(Dropout(0.5))
     model_conv.add(Dense(2, activation='sigmoid'))
     return model_conv
 
