@@ -1,5 +1,5 @@
 import pickle
-
+import copy
 import gensim
 import numpy as np
 from gensim.models import Word2Vec
@@ -39,9 +39,9 @@ text_rep = 'embeddings'
 pos = '1111'
 num_layers = 200
 nfeature = 8000
-n = 50
-src = 'kitchen'
-tgt = 'electronics'
+n = 150
+src = 'books'
+tgt = 'dvd'
 maxlen = 500
 batch_size = 64
 filters = 250
@@ -53,26 +53,45 @@ _ = None
 
 get_bin = lambda x, n: format(x, 'b').zfill(n)
 
+# ---------------------------------- preprocessing -------------------------------------------
+print("\npreprocessing=====================================\n")
+
+datasets = {}
+labels = {}
+
+with open('Datasets/dataset_books', 'rb') as fp:
+    dataset = pickle.load(fp)
+data = to_process(dataset.docs, pos, 3)
+datasets['books'] = data
+labels['books'] = dataset.labels
+
+with open('Datasets/dataset_dvd', 'rb') as fp:
+    dataset = pickle.load(fp)
+data = to_process(dataset.docs, pos, 3)
+datasets['dvd'] = data
+labels['dvd'] = dataset.labels
+
+with open('Datasets/dataset_electronics', 'rb') as fp:
+    dataset = pickle.load(fp)
+data = to_process(dataset.docs, pos, 3)
+datasets['electronics'] = data
+labels['electronics'] = dataset.labels
+
+with open('Datasets/dataset_kitchen', 'rb') as fp:
+    dataset = pickle.load(fp)
+data = to_process(dataset.docs, pos, 3)
+datasets['kitchen'] = data
+labels['kitchen'] = dataset.labels
+
 for src in ['books', 'dvd', 'electronics', 'kitchen']:
+
     for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
         if src != tgt:
-            with open('Datasets/dataset_' + src, 'rb') as fp:
-                dataset_source = pickle.load(fp)
 
-            with open('Datasets/dataset_' + tgt, 'rb') as fp:
-                dataset_target = pickle.load(fp)
-
-            # ---------------------------------- preprocessing -------------------------------------------
-            print("\npreprocessing=====================================\n")
-            data_source, _, label_source, _ = train_test_split(dataset_source.docs, dataset_source.labels,
-                                                               test_size=0.01,
-                                                               random_state=42)
-            data_source = to_process(data_source, pos, 3)
-
-            data_target, _, label_target, _ = train_test_split(dataset_target.docs, dataset_target.labels,
-                                                               test_size=0.01,
-                                                               random_state=42)
-            data_target = to_process(data_target, pos, 3)
+            data_source = datasets[src]
+            label_source = labels[src]
+            data_target = datasets[tgt]
+            label_target = labels[tgt]
 
             # ----------------------------------- clustering ---------------------------------------------
             print("\nclustering=======================================\n")
@@ -149,11 +168,6 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 if index not in grouped_t:
                     grouped_s.append(i)
                     grouped_t.append(index)
-
-            # ALSENT (Average-Lexical-SentiWordNet-TFIDF):
-            # Average TF score = average of the term frequence in the documents it occurs
-            # sentiment score = pos_score - (neg_score * -1)
-            # ALSENT = Average TF score * sentiment score * IDF
 
             # ------------------------------ calculating ALSENT -------------------------------------
             print("\nconnecting features===================================\n")
@@ -239,13 +253,13 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
             # ----------------------------------- feature replacement ----------------------------------------
             print("\nsubstituting ==============================================\n")
-            data_source_aux = data_source.copy()
+            data_source_aux = copy.deepcopy(data_source)
             for i in range(len(data_source_aux)):
                 for j in range(len(data_source_aux[i])):
                     if data_source_aux[i][j] in grouped_features:
                         data_source_aux[i][j] = grouped_features[data_source_aux[i][j]]
 
-            data_target_aux = data_target.copy()
+            data_target_aux = copy.deepcopy(data_target)
             for i in range(len(data_target_aux)):
                 for j in range(len(data_target_aux[i])):
                     if data_target_aux[i][j] in grouped_features:
@@ -470,7 +484,8 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 y_test = np_utils.to_categorical(label_target, 2)
 
                 convl.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-                convl.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
+                convl.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=0)
+
 
                 scores = convl.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
                 print("%s: %.2f%%" % (convl.metrics_names[1], scores[1] * 100))

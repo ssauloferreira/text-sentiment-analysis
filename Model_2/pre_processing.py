@@ -197,7 +197,7 @@ def get_senti_representation(vocabulary, pos_form=False):
                 word = item[:i]
                 pos = item[i + 1:]
 
-        if True:  #pos == 'v' or pos == 'a':
+        if True: #pos == 'v' or pos == 'a':
             syns = list(swn.senti_synsets(word))
             if syns.__len__() > 0:
                 pos_score = []
@@ -214,7 +214,7 @@ def get_senti_representation(vocabulary, pos_form=False):
                            round(np.mean(neg_score), 3),
                            round(np.mean(obj_score), 3)]
 
-                    if True:
+                    if aux[0] > 0.1 or aux[1] > 0.1:
                         scores.append(aux)
 
                         if pos_form:
