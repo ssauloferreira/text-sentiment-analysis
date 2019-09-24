@@ -4,6 +4,10 @@ import spacy
 from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import stopwords, wordnet
 
+nltk.download('stopwords')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('sentiwordnet')
+nltk.download('wordnet')
 # python -m spacy download en
 #
 # adjectives, verbs, nouns, adverbs
@@ -27,7 +31,7 @@ from nltk.corpus import stopwords, wordnet
 # Reading stop-words
 stop_words = set(stopwords.words('english'))
 # Loading spacy's model
-nlp = spacy.load('en_core_web_sm')
+nlp = spacy.load('en')
 # Punctuation's list
 punctuation = "[!”#$%&’()*+,-./:;<=>?@[\]^_`{|}~]:0123456789 "
 # Negation words
