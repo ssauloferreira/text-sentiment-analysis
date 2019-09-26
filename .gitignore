@@ -12,3 +12,7 @@ Model_2/venv/
 venv/bin/
 
 venv/
+
+Datasets/google-pretrained.bin
+
+.vscode/

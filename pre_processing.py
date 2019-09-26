@@ -218,7 +218,7 @@ def get_senti_representation(vocabulary, pos_form=False):
                            round(np.mean(neg_score), 3),
                            round(np.mean(obj_score), 3)]
 
-                    if aux[0] > 0.1 or aux[1] > 0.1:
+                    if aux[0] > 0.2 or aux[1] > 0.2:
                         scores.append(aux)
 
                         if pos_form:
