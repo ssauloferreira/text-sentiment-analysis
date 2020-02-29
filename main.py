@@ -2,6 +2,8 @@ import pickle
 import copy
 import gensim
 import numpy as np
+import logging
+
 from gensim.models import Word2Vec
 from keras.utils import np_utils
 from keras_preprocessing.sequence import pad_sequences
@@ -10,13 +12,15 @@ from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_selection import chi2
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, accuracy_score, recall_score, confusion_matrix
+from sklearn.metrics import f1_score, accuracy_score, recall_score
 from sklearn.model_selection import train_test_split
 from scipy.spatial import distance
 from sklearn.tree import tree
 
 import neural_networks
 from pre_processing import to_process, get_vocabulary, get_senti_representation
+
+logger = logging.getLogger()
 
 
 def to_string(lists):
@@ -31,7 +35,9 @@ def to_string(lists):
     return new_docs
 
 
-model = gensim.models.KeyedVectors.load_word2vec_format('Datasets/GoogleNews-vectors-negative300.bin', binary=True)
+model = gensim.models.KeyedVectors\
+    .load_word2vec_format('Datasets/GoogleNews-vectors-negative300.bin',
+                          binary=True)
 classif = "mlp"
 vocabulary_size = 10000
 embedding_size = 300
@@ -51,8 +57,8 @@ _ = None
 
 get_bin = lambda x, n: format(x, 'b').zfill(n)
 
-# ---------------------------------- preprocessing -------------------------------------------
-#print("\npreprocessing=====================================\n")
+# -------------------------- preprocessing ------------------------------------
+logger.info("\npreprocessing=====================================\n")
 
 datasets = {}
 labels = {}
@@ -90,14 +96,18 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
             data_target = datasets[tgt]
             label_target = labels[tgt]
 
-            # ----------------------------------- clustering ---------------------------------------------
-            #print("\nclustering=======================================\n")
+            # --------------------- clustering --------------------------------
+            logger.info("Clustering features")
+
             vocabulary_source = get_vocabulary(data_source)
-            #print('Vocabulary source:', len(vocabulary_source))
-            vocab_source, scores_source, dicti_source = get_senti_representation(vocabulary_source, True)
+            logger.info('Vocabulary source:', len(vocabulary_source))
+            vocab_source, scores_source, dicti_source = \
+                get_senti_representation(vocabulary_source, True)
+
             vocabulary_target = get_vocabulary(data_target)
-            #print('Vocabulary target:', len(vocabulary_target))
-            vocab_target, scores_target, dicti_target = get_senti_representation(vocabulary_target, True)
+            logger.info('Vocabulary target:', len(vocabulary_target))
+            vocab_target, scores_target, dicti_target = \
+                get_senti_representation(vocabulary_target, True)
 
             dicti = {}
             dicti.update(dicti_source)
@@ -123,21 +133,23 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 wclusters_target[aux].append(vocab_target[i])
                 sclusters_target[aux].append(scores_target[i])
 
-            # --------------------------------- feature selection ---------------------------------------
+            # ----------------- feature selection -----------------------------
             common = []
 
-            #print("Number of sentiment features source:", len(vocab_source))
-            #print("Number of sentiment features target:", len(vocab_target))
+            logger.info("Number of sentiment features source:",
+                        len(vocab_source))
+            logger.info("Number of sentiment features target:",
+                        len(vocab_target))
 
             for feature in vocab_source:
                 if feature in vocab_target:
                     common.append(feature)
 
             features_source = common
-            #print("Number of common features: ", len(common))
+            logger.info("Number of common features: ", len(common))
 
-            # --------------------------------- agrupando clusters --------------------------------------
-            #print("\nlinking clusters========================================\n")
+            # ----------------- agrupando clusters ----------------------------
+            logger.info("Linking the most similar clusters")
             grouped_s = []
             grouped_t = []
 
@@ -166,9 +178,8 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     grouped_s.append(i)
                     grouped_t.append(index)
 
-            # ------------------------------ calculating ALSENT -------------------------------------
-            #print("\nconnecting features===================================\n")
-
+            # ------------------- calculating ALSENT --------------------------
+            logger.info("Connecting features")
 
             def get_average_tfidf(feature, data):
                 total = []
@@ -184,10 +195,9 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                         total.append(count)
                 try:
                     idf = np.log(len(data) / count_idf)
-                except:
+                except ZeroDivisionError:
                     print(feature)
                 return np.mean(total), idf
-
 
             def feature_weight(cluster):
                 weighted_cluster = []
@@ -217,11 +227,10 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                         weight = 0
                         try:
                             weight = max(aux_map.values()) / tf
-                        except:
+                        except ZeroDivisionError:
                             pass
                         weighted_cluster.append([word, weight])
                 return weighted_cluster
-
 
             weighted_source = []
             for cluster in wclusters_source:
@@ -242,41 +251,41 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                 for j in range(len(weighted_source[x])):
                     if j < len(weighted_target[y]):
-                        aux = weighted_source[x][j][0][:-2] + '-' + weighted_target[y][j][0][:-2]
+                        aux = "".join([weighted_source[x][j][0][:-2],
+                                       '-', weighted_target[y][j][0][:-2]])
+
                         grouped_features[weighted_source[x][j][0]] = aux
                         grouped_features[weighted_target[y][j][0]] = aux
 
-            #print('Length of grouped features: ', len(grouped_features) / 2)
-
-            # ----------------------------------- feature replacement ----------------------------------------
-            #print("\nsubstituting ==============================================\n")
+            # --------------------- feature replacement -----------------------
             data_source_aux = copy.deepcopy(data_source)
             for i in range(len(data_source_aux)):
                 for j in range(len(data_source_aux[i])):
                     if data_source_aux[i][j] in grouped_features:
-                        data_source_aux[i][j] = grouped_features[data_source_aux[i][j]]
+                        data_source_aux[i][j] = \
+                            grouped_features[data_source_aux[i][j]]
 
             data_target_aux = copy.deepcopy(data_target)
             for i in range(len(data_target_aux)):
                 for j in range(len(data_target_aux[i])):
                     if data_target_aux[i][j] in grouped_features:
-                        data_target_aux[i][j] = grouped_features[data_target_aux[i][j]]
+                        data_target_aux[i][j] = \
+                            grouped_features[data_target_aux[i][j]]
 
-            # print(data_source)
-            # print(data_target)
-
-            #print("\nclassifying==============================================\n")
+            logger.info("Data has been already formatted.")
             if text_rep == 'tf-idf':
-                # --------------------------------- feature selection ---------------------------------------
+                # ------------------ feature selection ------------------------
                 features_linked = list(dict.fromkeys(grouped_features.values()))
                 features = features_linked + features_source
 
-                cv_source = CountVectorizer(max_df=0.95, min_df=2, vocabulary=features)
+                cv_source = CountVectorizer(max_df=0.95, min_df=2,
+                                            vocabulary=features)
                 x_source = cv_source.fit_transform(to_string(data_source_aux))
 
                 chi_stats, p_vals = chi2(x_source, label_source)
-                chi_res = sorted(list(zip(cv_source.get_feature_names(), chi_stats)),
-                                    key=lambda x: x[1], reverse=True)[0:1500]
+                chi_res = sorted(list(zip(cv_source.get_feature_names(),
+                                          chi_stats)),
+                                 key=lambda x: x[1], reverse=True)[0:1500]
 
                 features = []
                 for chi in chi_res:
@@ -284,45 +293,31 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                 num_words = len(features)
 
-                # ------------------------------------ tf-idf -----------------------------------------------
-                cv = TfidfVectorizer(smooth_idf=True, norm='l1', vocabulary=features)
-                x_train = cv.fit_transform(
-                    to_string(data_source_aux))  # alsent(dataset=data_source_aux, dicti=dicti, features=features)
-                x_test = cv.transform(
-                    to_string(data_target_aux))  # alsent(dataset=data_target_aux, dicti=dicti, features=features)
+                # -------------------- tf-idf ---------------------------------
+                cv = TfidfVectorizer(smooth_idf=True,
+                                     norm='l1',
+                                     vocabulary=features)
 
-                # print(len(x_train), len(x_train[0]))
-                # tokenizer = Tokenizer(num_words=num_words)
-                # tokenizer.fit_on_texts(data_source_aux)
-                #
-                # vocab_size = len(tokenizer.word_index) + 1
-                #
-                # X_train = tokenizer.texts_to_sequences(data_source_aux)
-                # X_test = tokenizer.texts_to_sequences(data_target_aux)
-                #
-                # maxlen = 100
-                #
-                # x_train = pad_sequences(X_train, padding='post', maxlen=maxlen)
-                # x_test = pad_sequences(X_test, padding='post', maxlen=maxlen)
-                #
-                # print(x_train)
-                # print(x_test)
+                x_train = cv.fit_transform(to_string(data_source_aux))
+                x_test = cv.transform(to_string(data_target_aux))
 
-                #  -------------------------------------- classifying  ---------------------------------------
+                #  ------------------ classifying  ----------------------------
                 if classif == "logistic regression":
                     classifier = LogisticRegression()
                     classifier.fit(x_train, label_source)
                     predict = classifier.predict(x_test)
 
-                    precision = f1_score(label_target, predict, average='binary')
-                    #print('Precision:', precision)
+                    precision = f1_score(label_target, predict,
+                                         average='binary')
+                    logger.info('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    #print('Accuracy: ', accuracy)
-                    recall = recall_score(label_target, predict, average='binary')
-                    #print('Recall: ', recall)
+                    logger.info('Accuracy: ', accuracy)
+                    recall = recall_score(label_target, predict,
+                                          average='binary')
+                    logger.info('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    #print('Confusion matrix: \n', confMatrix)
-                    #print('\n')
+                    logger.info('Confusion matrix: \n', confMatrix)
+                    logger.info('\n')
                     print(src, tgt, ": ", accuracy*100)
 
                 if classif == "deicion tree":
@@ -330,31 +325,43 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     clf.fit(x_train, label_source)
                     predict = clf.predict(x_test)
 
-                    precision = f1_score(label_target, predict, average='binary')
-                    #print('Precision:', precision)
+                    precision = f1_score(label_target, predict,
+                                         average='binary')
+                    logger.info('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    #print('Accuracy: ', accuracy)
-                    recall = recall_score(label_target, predict, average='binary')
-                    #print('Recall: ', recall)
+                    logger.info('Accuracy: ', accuracy)
+                    recall = recall_score(label_target, predict,
+                                          average='binary')
+                    logger.info('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    #print('Confusion matrix: \n', confMatrix)
-                    #print('\n')
+                    logger.info('Confusion matrix: \n', confMatrix)
+                    logger.info('\n')
                     print(src, tgt, ": ", accuracy*100)
 
                 if classif == "mlp":
                     y_train = np_utils.to_categorical(label_target, 2)
                     y_test = np_utils.to_categorical(label_source, 2)
 
-                    model = neural_networks.mlp(input_shape=num_words, num_layers=num_layers)
+                    model = neural_networks.mlp(input_shape=num_words,
+                                                num_layers=num_layers)
                     # model.summary()
-                    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-                    # #
-                    # # #print(str(n), "clusters")
-                    # #
-                    model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1)
-                    scores = model.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
-                    #print("src", src, "tgt", tgt, "num_layers", num_layers, 'pos', pos)
-                    print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
+                    model.compile(loss='categorical_crossentropy',
+                                  optimizer='adam', metrics=["accuracy"])
+
+                    model.fit(x_train,
+                              y_train,
+                              batch_size=batch_size,
+                              epochs=epochs,
+                              verbose=1)
+                    scores = model.evaluate(x_test,
+                                            y_test,
+                                            verbose=0,
+                                            batch_size=batch_size)
+                    logger.info("src", src, "tgt", tgt, "num_layers",
+                                num_layers, 'pos', pos)
+
+                    print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1],
+                                                    scores[1] * 100))
 
             elif text_rep == 'embeddings':
 
@@ -376,10 +383,12 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                 maxlen = 100
 
-                x_train = pad_sequences(sequences_src, padding='post', maxlen=maxlen)
-                x_test = pad_sequences(sequences_tgt, padding='post', maxlen=maxlen)
-
-                # model = Word2Vec.load('Datasets/emb.model')
+                x_train = pad_sequences(sequences_src,
+                                        padding='post',
+                                        maxlen=maxlen)
+                x_test = pad_sequences(sequences_tgt,
+                                       padding='post',
+                                       maxlen=maxlen)
 
                 data_source_aux = []
                 data_target_aux = []
@@ -442,18 +451,18 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                             else:
                                 text_emb.append(model.wv['a'])
                     source_emb.append(text_emb)
-            
+
                 target_emb = []
                 for text in data_target_aux:
                     text_emb = []
                     for word in text:
                         if '_' in word:
                             aux = word.split('-')
-            
+
                             aux2 = []
                             if aux[0] in model.wv:
                                 aux2 = model.wv[aux[0]]
-            
+
                             aux3 = []
                             if aux[1] in model.wv:
                                 aux3 = model.wv[aux[1]]
@@ -477,18 +486,25 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                 text_emb.append(model.wv['a'])
                     target_emb.append(text_emb)
                 '''
-                convl = neural_networks.create_conv_model(vocabulary_size, embedding_size, embedding_matrix)
-                # convl = neural_networks.convL(vocabulary_size, embedding_size, embedding_matrix)
+                convl = neural_networks.create_conv_model(vocabulary_size,
+                                                          embedding_size,
+                                                          embedding_matrix)
                 y_train = np_utils.to_categorical(label_source, 2)
                 y_test = np_utils.to_categorical(label_target, 2)
 
-                convl.compile(loss='categorical_crossentropy', optimizer='adam', metrics=["accuracy"])
-                convl.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=0)
+                convl.compile(loss='categorical_crossentropy',
+                              optimizer='adam',
+                              metrics=["accuracy"])
+                convl.fit(x_train, y_train,
+                          batch_size=batch_size,
+                          epochs=epochs, verbose=0)
 
+                scores = convl.evaluate(x_test, y_test,
+                                        verbose=0,
+                                        batch_size=batch_size)
+                print(src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
+                                                scores[1] * 100))
 
-                scores = convl.evaluate(x_test, y_test, verbose=0, batch_size=batch_size)
-                print(src, tgt, "%s: %.2f%%" % (convl.metrics_names[1], scores[1] * 100))
-
-            #print("src", src, "tgt", tgt, "num_layers", num_layers, 'pos', pos, 'text_representation', text_rep,
-                    #"n clusters", n, "epochs", epochs)
-            #print("\n-------------------------------------------------------------\n")
+            logger.info("src", src, "tgt", tgt, "num_layers", num_layers,
+                        'pos', pos, 'text_representation', text_rep)
+            logger.info("\n------------------------------------------------\n")
