@@ -16,6 +16,8 @@ from sklearn.metrics import f1_score, accuracy_score, recall_score
 from sklearn.model_selection import train_test_split
 from scipy.spatial import distance
 from sklearn.tree import tree
+from flair.embeddings import BertEmbeddings, ELMoEmbeddings, \
+    FlairEmbeddings, WordEmbeddings
 
 import neural_networks
 from pre_processing import to_process, get_vocabulary, get_senti_representation
@@ -35,13 +37,15 @@ def to_string(lists):
     return new_docs
 
 
-model = gensim.models.KeyedVectors\
-    .load_word2vec_format('Datasets/GoogleNews-vectors-negative300.bin',
-                          binary=True)
+embedding_models = {"bert": BertEmbeddings(),
+                    "elmo": ELMoEmbeddings(),
+                    "flair": FlairEmbeddings(),
+                    "default": WordEmbeddings()}
 classif = "mlp"
 vocabulary_size = 10000
 embedding_size = 300
 text_rep = 'embeddings'
+embedding_model = "bert"
 pos = '1111'
 num_layers = 200
 nfeature = 8000
@@ -364,11 +368,19 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                                     scores[1] * 100))
 
             elif text_rep == 'embeddings':
+                embedding = embedding_models.get(embedding_model,
+                                                 embedding_models["default"])
+                model = []
 
                 for text in data_source_aux:
                     for a in range(len(text)):
                         if '_' in text[a]:
-                            text[a] = text[a][:-2]
+                            word = text[a][:-2]
+                            text[a] = word
+
+                            sentence = Sentence(word)
+                            embedding.embed(sentence)
+                            # model
 
                 for text in data_target_aux:
                     for a in range(len(text)):
