@@ -45,7 +45,7 @@ embedding_models = {
                 }
 classif = "mlp"
 vocabulary_size = 8000
-embedding_size = 100
+embedding_size = 3072
 text_rep = 'embeddings'
 embedding_model = "bert"
 pos = '1111'
@@ -395,20 +395,20 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 data_target_str = to_string(data_target_aux)
 
                 #print("Generating embedding matrix")
-                for text_source, text_target in zip(data_source_str, 
-                                                    data_target_str):
-                    sentence = Sentence(text_source)
-                    print(sentence)
-                    embedding.embed(sentence)
-                    for token in sentence:
-                        word = str(token).split(" ")[-1]
-                        model[word] = token.embedding.tolist()
+                # for text_source, text_target in zip(data_source_str, 
+                #                                     data_target_str):
+                #     sentence = Sentence(text_source)
+                #     print(sentence)
+                #     embedding.embed(sentence)
+                #     for token in sentence:
+                #         word = str(token).split(" ")[-1]
+                #         model[word] = token.embedding.tolist()
 
-                    sentence = Sentence(text_target)
-                    embedding.embed(sentence)
-                    for token in sentence:
-                        word = str(token).split(" ")[-1]
-                        model[word] = token.embedding.tolist()
+                #     sentence = Sentence(text_target)
+                #     embedding.embed(sentence)
+                #     for token in sentence:
+                #         word = str(token).split(" ")[-1]
+                #         model[word] = token.embedding.tolist()
                 print("                 |============= OK =============|", end="")
 
                 #print("Tokenizing it all")
@@ -438,22 +438,13 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     if i >= vocabulary_size:
                         break
 
-                    if '-' in word:
-                        aux = word.split('-')
-                        aux1 = aux[0]
-                        aux2 = aux[1]
+                    sentence = Sentence(word.split("-")[0])
+                    embedding.embed(sentence)
+                    for token in sentence:
+                        word = str(token).split(" ")[-1]
+                        emb = token.embedding.tolist()
+                        embedding_matrix[i] = emb
 
-                        if aux1 not in model and aux2 not in model:
-                            embedding_matrix[i] = np.zeros(embedding_size)
-                        elif aux1 not in model:
-                            embedding_matrix[i] = model[aux2]
-                        else:
-                            embedding_matrix[i] = model[aux1]
-                    else:
-                        if word in model:
-                            embedding_matrix[i] = model[word]
-                        else:
-                            embedding_matrix[i] = np.zeros(embedding_size)
                 print("============= OK ==============|", end="")
 
                 convl = neural_networks.create_conv_model(vocabulary_size,
