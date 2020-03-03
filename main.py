@@ -16,8 +16,8 @@ from sklearn.metrics import f1_score, accuracy_score, recall_score
 from sklearn.model_selection import train_test_split
 from scipy.spatial import distance
 from sklearn.tree import tree
-from flair.embeddings import BertEmbeddings, ELMoEmbeddings, \
-    FlairEmbeddings, WordEmbeddings
+from flair.embeddings import BertEmbeddings, WordEmbeddings
+from flair.data import Sentence
 
 import neural_networks
 from pre_processing import to_process, get_vocabulary, get_senti_representation
@@ -37,13 +37,15 @@ def to_string(lists):
     return new_docs
 
 
-embedding_models = {"bert": BertEmbeddings(),
-                    "elmo": ELMoEmbeddings(),
-                    "flair": FlairEmbeddings(),
-                    "default": WordEmbeddings()}
+embedding_models = {
+                    "bert": BertEmbeddings(),
+                    # "elmo": ELMoEmbeddings(),
+                    # "flair": FlairEmbeddings(),
+                    "default": WordEmbeddings('glove')
+                }
 classif = "mlp"
-vocabulary_size = 10000
-embedding_size = 300
+vocabulary_size = 8000
+embedding_size = 100
 text_rep = 'embeddings'
 embedding_model = "bert"
 pos = '1111'
@@ -59,10 +61,12 @@ epochs = 5
 nb_epoch_t = 50
 _ = None
 
-get_bin = lambda x, n: format(x, 'b').zfill(n)
+
+def get_bin(x, n): return format(x, 'b').zfill(n)
+
 
 # -------------------------- preprocessing ------------------------------------
-logger.info("\npreprocessing=====================================\n")
+#print("\npreprocessing=====================================\n")
 
 datasets = {}
 labels = {}
@@ -94,6 +98,7 @@ labels['kitchen'] = dataset.labels
 for src in ['books', 'dvd', 'electronics', 'kitchen']:
     for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
         if src != tgt:
+            print("[PROGRESS] |\tPreprocessing\t|\tClustering Features\t|\tConnecting Features\t|")
 
             data_source = datasets[src]
             label_source = labels[src]
@@ -101,17 +106,18 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
             label_target = labels[tgt]
 
             # --------------------- clustering --------------------------------
-            logger.info("Clustering features")
+            #print("[PROGRESS] Clustering features")
 
             vocabulary_source = get_vocabulary(data_source)
-            logger.info('Vocabulary source:', len(vocabulary_source))
+            #print('[PROGRESS] Vocabulary source:', len(vocabulary_source))
             vocab_source, scores_source, dicti_source = \
                 get_senti_representation(vocabulary_source, True)
 
             vocabulary_target = get_vocabulary(data_target)
-            logger.info('Vocabulary target:', len(vocabulary_target))
+            #print('[PROGRESS] Vocabulary target:', len(vocabulary_target))
             vocab_target, scores_target, dicti_target = \
                 get_senti_representation(vocabulary_target, True)
+            print("           |======== OK ========|", end="")
 
             dicti = {}
             dicti.update(dicti_source)
@@ -136,24 +142,25 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 aux = clustering_target.labels_[i]
                 wclusters_target[aux].append(vocab_target[i])
                 sclusters_target[aux].append(scores_target[i])
+            print("============== OK =============|", end="")
 
             # ----------------- feature selection -----------------------------
             common = []
 
-            logger.info("Number of sentiment features source:",
-                        len(vocab_source))
-            logger.info("Number of sentiment features target:",
-                        len(vocab_target))
+            #print("[PROGRESS] Number of sentiment features source:",
+                        # len(vocab_source))
+            #print("[PROGRESS] Number of sentiment features target:",
+                        # len(vocab_target))
 
             for feature in vocab_source:
                 if feature in vocab_target:
                     common.append(feature)
 
             features_source = common
-            logger.info("Number of common features: ", len(common))
+            #print("[PROGRESS] Number of common features: ", len(common))
 
             # ----------------- agrupando clusters ----------------------------
-            logger.info("Linking the most similar clusters")
+            #print("Linking the most similar clusters")
             grouped_s = []
             grouped_t = []
 
@@ -183,7 +190,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     grouped_t.append(index)
 
             # ------------------- calculating ALSENT --------------------------
-            logger.info("Connecting features")
+            #print("[PROGRESS] Connecting features")
 
             def get_average_tfidf(feature, data):
                 total = []
@@ -260,6 +267,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                         grouped_features[weighted_source[x][j][0]] = aux
                         grouped_features[weighted_target[y][j][0]] = aux
+            print("============== OK =============|\n")
 
             # --------------------- feature replacement -----------------------
             data_source_aux = copy.deepcopy(data_source)
@@ -276,7 +284,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                         data_target_aux[i][j] = \
                             grouped_features[data_target_aux[i][j]]
 
-            logger.info("Data has been already formatted.")
+            #print("[PROGRESS] Data has been already formatted.")
             if text_rep == 'tf-idf':
                 # ------------------ feature selection ------------------------
                 features_linked = list(dict.fromkeys(grouped_features.values()))
@@ -313,16 +321,16 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                     precision = f1_score(label_target, predict,
                                          average='binary')
-                    logger.info('Precision:', precision)
+                    #print('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    logger.info('Accuracy: ', accuracy)
+                    #print('Accuracy: ', accuracy)
                     recall = recall_score(label_target, predict,
                                           average='binary')
-                    logger.info('Recall: ', recall)
+                    #print('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    logger.info('Confusion matrix: \n', confMatrix)
-                    logger.info('\n')
-                    print(src, tgt, ": ", accuracy*100)
+                    #print('Confusion matrix: \n', confMatrix)
+                    #print('\n')
+                    #print(src, tgt, ": ", accuracy*100)
 
                 if classif == "deicion tree":
                     clf = tree.DecisionTreeClassifier()
@@ -331,16 +339,16 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                     precision = f1_score(label_target, predict,
                                          average='binary')
-                    logger.info('Precision:', precision)
+                    #print('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    logger.info('Accuracy: ', accuracy)
+                    #print('Accuracy: ', accuracy)
                     recall = recall_score(label_target, predict,
                                           average='binary')
-                    logger.info('Recall: ', recall)
+                    #print('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    logger.info('Confusion matrix: \n', confMatrix)
-                    logger.info('\n')
-                    print(src, tgt, ": ", accuracy*100)
+                    #print('Confusion matrix: \n', confMatrix)
+                    #print('\n')
+                    #print(src, tgt, ": ", accuracy*100)
 
                 if classif == "mlp":
                     y_train = np_utils.to_categorical(label_target, 2)
@@ -361,32 +369,49 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                             y_test,
                                             verbose=0,
                                             batch_size=batch_size)
-                    logger.info("src", src, "tgt", tgt, "num_layers",
+                    print("src", src, "tgt", tgt, "num_layers",
                                 num_layers, 'pos', pos)
 
-                    print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1],
-                                                    scores[1] * 100))
+                    #print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1],
+                                                    # scores[1] * 100))
 
             elif text_rep == 'embeddings':
+                print("[CLASSIFICATION] |\tProcessing embeddings\t|\tGen. embedding matrix\t|\tFitting neural network\t|")
                 embedding = embedding_models.get(embedding_model,
                                                  embedding_models["default"])
-                model = []
+                model = {}
 
-                for text in data_source_aux:
-                    for a in range(len(text)):
-                        if '_' in text[a]:
-                            word = text[a][:-2]
-                            text[a] = word
+                for i, text in enumerate(data_source_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
 
-                            sentence = Sentence(word)
-                            embedding.embed(sentence)
-                            # model
+                for i, text in enumerate(data_target_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
 
-                for text in data_target_aux:
-                    for a in range(len(text)):
-                        if '_' in text[a]:
-                            text[a] = text[a][:-2]
+                data_source_str = to_string(data_source_aux)
+                data_target_str = to_string(data_target_aux)
 
+                #print("Generating embedding matrix")
+                for text_source, text_target in zip(data_source_str, 
+                                                    data_target_str):
+                    sentence = Sentence(text_source)
+                    print(sentence)
+                    embedding.embed(sentence)
+                    for token in sentence:
+                        word = str(token).split(" ")[-1]
+                        model[word] = token.embedding.tolist()
+
+                    sentence = Sentence(text_target)
+                    embedding.embed(sentence)
+                    for token in sentence:
+                        word = str(token).split(" ")[-1]
+                        model[word] = token.embedding.tolist()
+                print("                 |============= OK =============|", end="")
+
+                #print("Tokenizing it all")
                 tokenizer = Tokenizer(num_words=vocabulary_size)
                 tokenizer.fit_on_texts(data_source_aux + data_target_aux)
 
@@ -405,6 +430,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 data_source_aux = []
                 data_target_aux = []
 
+                #print("Transform into embedding vectors")
                 embedding_matrix = np.zeros((vocabulary_size, embedding_size))
 
                 for word in tokenizer.word_index:
@@ -428,76 +454,8 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                             embedding_matrix[i] = model[word]
                         else:
                             embedding_matrix[i] = np.zeros(embedding_size)
+                print("============= OK ==============|", end="")
 
-                '''
-                source_emb = []
-                for text in data_source_aux:
-                    text_emb = []
-                    for word in text:
-                        if '_' in word:
-                            aux = word.split('-')
-            
-                            aux2 = []
-                            if aux[0] in model.wv:
-                                aux2 = model.wv[aux[0]]
-            
-                            aux3 = []
-                            if aux[1] in model.wv:
-                                aux3 = model.wv[aux[1]]
-            
-                            if len(aux2) == 0:
-                                if len(aux3) > 0:
-                                    text_emb.append(aux3)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            elif len(aux3) == 0:
-                                if len(aux2) > 0:
-                                    text_emb.append(aux2)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            else:
-                                text_emb.append(distance.euclidean(aux2, aux3))
-                        else:
-                            if word in model.wv:
-                                text_emb.append(model.wv[word])
-                            else:
-                                text_emb.append(model.wv['a'])
-                    source_emb.append(text_emb)
-
-                target_emb = []
-                for text in data_target_aux:
-                    text_emb = []
-                    for word in text:
-                        if '_' in word:
-                            aux = word.split('-')
-
-                            aux2 = []
-                            if aux[0] in model.wv:
-                                aux2 = model.wv[aux[0]]
-
-                            aux3 = []
-                            if aux[1] in model.wv:
-                                aux3 = model.wv[aux[1]]
-            
-                            if len(aux2) == 0:
-                                if len(aux3) > 0:
-                                    text_emb.append(aux3)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            elif len(aux3) == 0:
-                                if len(aux2) > 0:
-                                    text_emb.append(aux2)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            else:
-                                text_emb.append(distance.euclidean(aux2, aux3))
-                        else:
-                            if word in model.wv:
-                                text_emb.append(model.wv[word])
-                            else:
-                                text_emb.append(model.wv['a'])
-                    target_emb.append(text_emb)
-                '''
                 convl = neural_networks.create_conv_model(vocabulary_size,
                                                           embedding_size,
                                                           embedding_matrix)
@@ -510,13 +468,15 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 convl.fit(x_train, y_train,
                           batch_size=batch_size,
                           epochs=epochs, verbose=0)
+                print("============= OK ==============|\n")
 
                 scores = convl.evaluate(x_test, y_test,
                                         verbose=0,
                                         batch_size=batch_size)
-                print(src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
-                                                scores[1] * 100))
+                print("[RESULT]")
+                print("\t", src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
+                                                      scores[1] * 100))
 
-            logger.info("src", src, "tgt", tgt, "num_layers", num_layers,
-                        'pos', pos, 'text_representation', text_rep)
-            logger.info("\n------------------------------------------------\n")
+            # #print("\tsrc", src, "tgt", tgt, "num_layers", num_layers,
+            #             'pos', pos, 'text_representation', text_rep)
+            #print("\n------------------------------------------------\n")

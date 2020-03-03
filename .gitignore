@@ -9,10 +9,10 @@ Model_2/venv/
 
 \.idea/
 
-venv/bin/
-
+crossvenv/
 venv/
 
 Datasets/google-pretrained.bin
 
 .vscode/
+
