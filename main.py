@@ -16,9 +16,10 @@ from sklearn.metrics import f1_score, accuracy_score, recall_score
 from sklearn.model_selection import train_test_split
 from scipy.spatial import distance
 from sklearn.tree import tree
-from flair.embeddings import BertEmbeddings, WordEmbeddings
+from flair.embeddings import FlairEmbeddings, WordEmbeddings
 from flair.data import Sentence
 
+import torch
 import neural_networks
 from pre_processing import to_process, get_vocabulary, get_senti_representation
 
@@ -38,21 +39,22 @@ def to_string(lists):
 
 
 embedding_models = {
-                    "bert": BertEmbeddings(),
+                    # "bert": BertEmbeddings(),
                     # "elmo": ELMoEmbeddings(),
-                    # "flair": FlairEmbeddings(),
+                    "flair": FlairEmbeddings('news-backward-fast'),
                     "default": WordEmbeddings('glove')
                 }
 classif = "mlp"
-vocabulary_size = 8000
-embedding_size = 3072
-text_rep = 'embeddings'
-embedding_model = "bert"
+vocabulary_size = 10000
+maxlen = 50
+embedding_size = 1024
+text_rep = 'flair'
+embedding_model = 'flair'
 pos = '1111'
 num_layers = 200
 nfeature = 8000
 n = 200
-maxlen = 500
+maxlen = 50
 batch_size = 64
 filters = 250
 kernel_size = 5
@@ -65,6 +67,28 @@ _ = None
 def get_bin(x, n): return format(x, 'b').zfill(n)
 
 
+def generatePredictionData(dataset, max_length,
+                           emb_size, embedding_model):
+    x_batch = []
+    for i, text in enumerate(dataset):
+        print(f"{i}/{len(dataset)}")
+        my_sent = text
+        sentence = Sentence(my_sent)
+        embedding_model.embed(sentence)
+
+        x = []
+        for token in sentence:
+            x.append(token.embedding.cpu().detach().numpy())
+            if len(x) == max_length:
+                break
+
+        while len(x) < max_length:
+            x.append(np.zeros(emb_size))
+
+        x_batch.append(x)
+    return x_batch
+
+
 # -------------------------- preprocessing ------------------------------------
 #print("\npreprocessing=====================================\n")
 
@@ -73,27 +97,28 @@ labels = {}
 
 with open('Datasets/dataset_books', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
+data = to_process(dataset.docs[950:1050], pos, 3)
 datasets['books'] = data
-labels['books'] = dataset.labels
+labels['books'] = dataset.labels[950:1050]
 
 with open('Datasets/dataset_dvd', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
+data = to_process(dataset.docs[950:1050], pos, 3)
 datasets['dvd'] = data
-labels['dvd'] = dataset.labels
+labels['dvd'] = dataset.labels[950:1050]
+print(labels['dvd'])
 
-with open('Datasets/dataset_electronics', 'rb') as fp:
-    dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
-datasets['electronics'] = data
-labels['electronics'] = dataset.labels
+# with open('Datasets/dataset_electronics', 'rb') as fp:
+#     dataset = pickle.load(fp)
+# data = to_process(dataset.docs, pos, 3)
+# datasets['electronics'] = data
+# labels['electronics'] = dataset.labels
 
-with open('Datasets/dataset_kitchen', 'rb') as fp:
-    dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
-datasets['kitchen'] = data
-labels['kitchen'] = dataset.labels
+# with open('Datasets/dataset_kitchen', 'rb') as fp:
+#     dataset = pickle.load(fp)
+# data = to_process(dataset.docs, pos, 3)
+# datasets['kitchen'] = data
+# labels['kitchen'] = dataset.labels
 
 for src in ['books', 'dvd', 'electronics', 'kitchen']:
     for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
@@ -354,7 +379,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     y_train = np_utils.to_categorical(label_target, 2)
                     y_test = np_utils.to_categorical(label_source, 2)
 
-                    model = neural_networks.mlp(input_shape=num_words,
+                    model = neural_networks.mlp(input_shape=(num_words,),
                                                 num_layers=num_layers)
                     # model.summary()
                     model.compile(loss='categorical_crossentropy',
@@ -372,8 +397,8 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     print("src", src, "tgt", tgt, "num_layers",
                                 num_layers, 'pos', pos)
 
-                    #print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1],
-                                                    # scores[1] * 100))
+                    print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1],
+                                                    scores[1] * 100))
 
             elif text_rep == 'embeddings':
                 print("[CLASSIFICATION] |\tProcessing embeddings\t|\tGen. embedding matrix\t|\tFitting neural network\t|")
@@ -413,12 +438,10 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                 #print("Tokenizing it all")
                 tokenizer = Tokenizer(num_words=vocabulary_size)
-                tokenizer.fit_on_texts(data_source_aux + data_target_aux)
+                tokenizer.fit_on_texts(data_source_aux)
 
                 sequences_src = tokenizer.texts_to_sequences(data_source_aux)
                 sequences_tgt = tokenizer.texts_to_sequences(data_target_aux)
-
-                maxlen = 100
 
                 x_train = pad_sequences(sequences_src,
                                         padding='post',
@@ -426,9 +449,6 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 x_test = pad_sequences(sequences_tgt,
                                        padding='post',
                                        maxlen=maxlen)
-
-                data_source_aux = []
-                data_target_aux = []
 
                 #print("Transform into embedding vectors")
                 embedding_matrix = np.zeros((vocabulary_size, embedding_size))
@@ -442,14 +462,17 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     embedding.embed(sentence)
                     for token in sentence:
                         word = str(token).split(" ")[-1]
-                        emb = token.embedding.tolist()
+                        emb = token.embedding
                         embedding_matrix[i] = emb
+                        print(f"{word}: {i}")
+                print(embedding_matrix)
 
                 print("============= OK ==============|", end="")
 
                 convl = neural_networks.create_conv_model(vocabulary_size,
                                                           embedding_size,
-                                                          embedding_matrix)
+                                                          embedding_matrix,
+                                                          maxlen)
                 y_train = np_utils.to_categorical(label_source, 2)
                 y_test = np_utils.to_categorical(label_target, 2)
 
@@ -459,6 +482,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 convl.fit(x_train, y_train,
                           batch_size=batch_size,
                           epochs=epochs, verbose=0)
+                print(convl.summary())
                 print("============= OK ==============|\n")
 
                 scores = convl.evaluate(x_test, y_test,
@@ -468,6 +492,63 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 print("\t", src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
                                                       scores[1] * 100))
 
-            # #print("\tsrc", src, "tgt", tgt, "num_layers", num_layers,
-            #             'pos', pos, 'text_representation', text_rep)
-            #print("\n------------------------------------------------\n")
+            elif text_rep == "flair":
+                model = embedding_models.get(embedding_model,
+                                             embedding_models["default"])
+
+                for i, text in enumerate(data_source_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
+                        if '-' in word:
+                            text[j] = word.split("-")[0]
+
+                for i, text in enumerate(data_target_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
+                        if '-' in word:
+                            text[j] = word.split("-")[0]
+
+                data_source_str = to_string(data_source_aux)
+                print(data_source_str)
+                data_target_str = to_string(data_target_aux)
+
+                x_train = generatePredictionData(dataset=data_source_str,
+                                                 max_length=maxlen,
+                                                 emb_size=embedding_size,
+                                                 embedding_model=model)
+
+                x_test = generatePredictionData(dataset=data_target_str,
+                                                max_length=maxlen,
+                                                emb_size=embedding_size,
+                                                embedding_model=model)
+                print(x_train)
+
+                x_train = np.array(x_train)
+                x_test = np.array(x_test)
+
+                y_train = np_utils.to_categorical(label_source, 2)
+                y_test = np_utils.to_categorical(label_target, 2)
+
+                convl = neural_networks.convL(input_shape=(maxlen,
+                                                           embedding_size))
+                convl.compile(loss='categorical_crossentropy',
+                              optimizer='adam', metrics=["accuracy"])
+                print(convl.summary())
+
+                convl.fit(x_train,
+                          y_train,
+                          batch_size=batch_size,
+                          epochs=epochs,
+                          verbose=1)
+
+                scores = convl.evaluate(x_test,
+                                        y_test,
+                                        verbose=1,
+                                        batch_size=batch_size)
+                print(scores)
+                print(y_test)
+
+                print(src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
+                                                scores[1] * 100))
