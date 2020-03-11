@@ -3,6 +3,7 @@ import numpy as np
 import spacy
 from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import stopwords, wordnet
+from progress.bar import Bar
 
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
@@ -83,6 +84,8 @@ def tuple_to_list(tuples):
     return result
 
 
+# input: list of strings (texts)
+# output: list of strings (words)
 def rare_features(dataset, minimum_tf):
     vocabulary = {}
 
@@ -109,6 +112,8 @@ def rare_features(dataset, minimum_tf):
     return result
 
 
+# input: list of lists of strings (words)
+# output: list of lists of strings
 def negation_processing(text):
     negable = ['JJ', 'VB']
     size = len(text)
@@ -120,16 +125,18 @@ def negation_processing(text):
             j = i + 1
             while j < size:
                 if text[j][1] in negable:
-                    word_reverse = text[j][0] + '_' + 'not'
+                    word_reverse = text[j][0] + '_not'
                     text[j][0] = word_reverse
                     break
                 j += 1
     return text
 
 
-def to_process(docs, pos, minimum_tf):
+def to_process(docs, pos, minimum_tf, label="Preprocessing"):
+    bar = Bar(label, max=len(docs))
     new_docs = []
     pos_filter = []
+    rare_vocab = rare_features(docs, minimum_tf)
 
     for i in range(4):
         if pos[i] == '1':
@@ -143,7 +150,6 @@ def to_process(docs, pos, minimum_tf):
                 pos_filter.append('r')
 
     for text in docs:
-
         # Tokenizing & lemmatization
         tokens = []
         doc = nlp(text)
@@ -157,7 +163,10 @@ def to_process(docs, pos, minimum_tf):
         # Removing stop words & punctuation & rare features
         tokens_filtered = []
         for word in pos_tags:
-            if word[0] not in stop_words and word[0] not in punctuation and word[0].isalpha():
+            if word[0] not in stop_words \
+                    and word[0] not in punctuation \
+                    and word[0].isalpha() \
+                    and word[0] not in rare_vocab:
                 aux = word[0].lower()
                 tokens_filtered.append([aux, word[1]])
 
@@ -171,7 +180,8 @@ def to_process(docs, pos, minimum_tf):
                     result_pos.append(word[0] + "_" + aux)
 
         new_docs.append(result_pos)
-
+        bar.next()
+    bar.finish()
     return new_docs
 
 
@@ -201,7 +211,7 @@ def get_senti_representation(vocabulary, pos_form=False):
                 word = item[:i]
                 pos = item[i + 1:]
 
-        if True: #pos == 'v' or pos == 'a':
+        if True:
             syns = list(swn.senti_synsets(word))
             if syns.__len__() > 0:
                 pos_score = []
@@ -213,7 +223,7 @@ def get_senti_representation(vocabulary, pos_form=False):
                         neg_score.append(syn.neg_score())
                         obj_score.append(syn.obj_score())
 
-                if len(pos_score) > 0:
+                if pos_score:
                     aux = [round(np.mean(pos_score), 3),
                            round(np.mean(neg_score), 3),
                            round(np.mean(obj_score), 3)]
@@ -244,7 +254,9 @@ def sentiment_value(features, dicti):
                 elif feature[i] == '_' and first:
                     aux1 = dicti[feature[:i]]
                     aux2 = dicti[feature[i + 1:]]
-                    sent = [aux1[0] + aux2[0] / 2, aux1[1] + aux2[1] / 2, aux1[2] + aux2[2] / 2]
+                    sent = [aux1[0] + aux2[0] / 2,
+                            aux1[1] + aux2[1] / 2,
+                            aux1[2] + aux2[2] / 2]
                     break
         else:
             sent = dicti[feature]
@@ -280,17 +292,14 @@ def alsent(dataset, dicti, features):
                 tf = text.count(feature)
                 idf = np.log(len(dataset)/idfs[feature])
                 value = sentivalues[feature]
-                # print(feature)
-                # print(value)
+
                 if value[2] == 1:
                     sent = 0.1
                 else:
                     sent = (value[0] - value[1]) + 1
 
                 sentfidf = tf * idf * sent
-
                 textvec.append(sentfidf)
-
             else:
                 textvec.append(0)
 

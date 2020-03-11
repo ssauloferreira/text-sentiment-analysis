@@ -45,10 +45,10 @@ embedding_models = {
                     "default": WordEmbeddings('glove')
                 }
 classif = "mlp"
-vocabulary_size = 10000
-maxlen = 50
+vocabulary_size = 5000
+maxlen = 100
 embedding_size = 1024
-text_rep = 'flair'
+text_rep = 'embeddings'
 embedding_model = 'flair'
 pos = '1111'
 num_layers = 200
@@ -90,59 +90,55 @@ def generatePredictionData(dataset, max_length,
 
 
 # -------------------------- preprocessing ------------------------------------
-#print("\npreprocessing=====================================\n")
+print("\npreprocessing=====================================\n")
 
 datasets = {}
 labels = {}
 
 with open('Datasets/dataset_books', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs[950:1050], pos, 3)
+data = to_process(dataset.docs, pos, 3, "Books")
 datasets['books'] = data
-labels['books'] = dataset.labels[950:1050]
+labels['books'] = dataset.labels
 
 with open('Datasets/dataset_dvd', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs[950:1050], pos, 3)
+data = to_process(dataset.docs, pos, 3, "DVD")
 datasets['dvd'] = data
-labels['dvd'] = dataset.labels[950:1050]
-print(labels['dvd'])
+labels['dvd'] = dataset.labels
 
-# with open('Datasets/dataset_electronics', 'rb') as fp:
-#     dataset = pickle.load(fp)
-# data = to_process(dataset.docs, pos, 3)
-# datasets['electronics'] = data
-# labels['electronics'] = dataset.labels
+with open('Datasets/dataset_electronics', 'rb') as fp:
+    dataset = pickle.load(fp)
+data = to_process(dataset.docs, pos, 3, "Eletronics")
+datasets['electronics'] = data
+labels['electronics'] = dataset.labels
 
-# with open('Datasets/dataset_kitchen', 'rb') as fp:
-#     dataset = pickle.load(fp)
-# data = to_process(dataset.docs, pos, 3)
-# datasets['kitchen'] = data
-# labels['kitchen'] = dataset.labels
+with open('Datasets/dataset_kitchen', 'rb') as fp:
+    dataset = pickle.load(fp)
+data = to_process(dataset.docs, pos, 3, "Kitchen")
+datasets['kitchen'] = data
+labels['kitchen'] = dataset.labels
 
 for src in ['books', 'dvd', 'electronics', 'kitchen']:
     for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
         if src != tgt:
-            print("[PROGRESS] |\tPreprocessing\t|\tClustering Features\t|\tConnecting Features\t|")
-
             data_source = datasets[src]
             label_source = labels[src]
             data_target = datasets[tgt]
             label_target = labels[tgt]
 
             # --------------------- clustering --------------------------------
-            #print("[PROGRESS] Clustering features")
+            print("[PROGRESS] Clustering features")
 
             vocabulary_source = get_vocabulary(data_source)
-            #print('[PROGRESS] Vocabulary source:', len(vocabulary_source))
+            print('[PROGRESS] Vocabulary source:', len(vocabulary_source))
             vocab_source, scores_source, dicti_source = \
                 get_senti_representation(vocabulary_source, True)
 
             vocabulary_target = get_vocabulary(data_target)
-            #print('[PROGRESS] Vocabulary target:', len(vocabulary_target))
+            print('[PROGRESS] Vocabulary target:', len(vocabulary_target))
             vocab_target, scores_target, dicti_target = \
                 get_senti_representation(vocabulary_target, True)
-            print("           |======== OK ========|", end="")
 
             dicti = {}
             dicti.update(dicti_source)
@@ -167,25 +163,24 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 aux = clustering_target.labels_[i]
                 wclusters_target[aux].append(vocab_target[i])
                 sclusters_target[aux].append(scores_target[i])
-            print("============== OK =============|", end="")
 
             # ----------------- feature selection -----------------------------
             common = []
 
-            #print("[PROGRESS] Number of sentiment features source:",
-                        # len(vocab_source))
-            #print("[PROGRESS] Number of sentiment features target:",
-                        # len(vocab_target))
+            print("[PROGRESS] Number of sentiment features source:",
+                        len(vocab_source))
+            print("[PROGRESS] Number of sentiment features target:",
+                        len(vocab_target))
 
             for feature in vocab_source:
                 if feature in vocab_target:
                     common.append(feature)
 
             features_source = common
-            #print("[PROGRESS] Number of common features: ", len(common))
+            print("[PROGRESS] Number of common features: ", len(common))
 
             # ----------------- agrupando clusters ----------------------------
-            #print("Linking the most similar clusters")
+            print("Linking the most similar clusters")
             grouped_s = []
             grouped_t = []
 
@@ -215,7 +210,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     grouped_t.append(index)
 
             # ------------------- calculating ALSENT --------------------------
-            #print("[PROGRESS] Connecting features")
+            print("[PROGRESS] Connecting features")
 
             def get_average_tfidf(feature, data):
                 total = []
@@ -292,7 +287,6 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                         grouped_features[weighted_source[x][j][0]] = aux
                         grouped_features[weighted_target[y][j][0]] = aux
-            print("============== OK =============|\n")
 
             # --------------------- feature replacement -----------------------
             data_source_aux = copy.deepcopy(data_source)
@@ -309,7 +303,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                         data_target_aux[i][j] = \
                             grouped_features[data_target_aux[i][j]]
 
-            #print("[PROGRESS] Data has been already formatted.")
+            print("[PROGRESS] Data has been already formatted.")
             if text_rep == 'tf-idf':
                 # ------------------ feature selection ------------------------
                 features_linked = list(dict.fromkeys(grouped_features.values()))
@@ -346,16 +340,16 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                     precision = f1_score(label_target, predict,
                                          average='binary')
-                    #print('Precision:', precision)
+                    print('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    #print('Accuracy: ', accuracy)
+                    print('Accuracy: ', accuracy)
                     recall = recall_score(label_target, predict,
                                           average='binary')
-                    #print('Recall: ', recall)
+                    print('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    #print('Confusion matrix: \n', confMatrix)
-                    #print('\n')
-                    #print(src, tgt, ": ", accuracy*100)
+                    print('Confusion matrix: \n', confMatrix)
+                    print('\n')
+                    print(src, tgt, ": ", accuracy*100)
 
                 if classif == "deicion tree":
                     clf = tree.DecisionTreeClassifier()
@@ -364,16 +358,16 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                     precision = f1_score(label_target, predict,
                                          average='binary')
-                    #print('Precision:', precision)
+                    print('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    #print('Accuracy: ', accuracy)
+                    print('Accuracy: ', accuracy)
                     recall = recall_score(label_target, predict,
                                           average='binary')
-                    #print('Recall: ', recall)
+                    print('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    #print('Confusion matrix: \n', confMatrix)
-                    #print('\n')
-                    #print(src, tgt, ": ", accuracy*100)
+                    print('Confusion matrix: \n', confMatrix)
+                    print('\n')
+                    print(src, tgt, ": ", accuracy*100)
 
                 if classif == "mlp":
                     y_train = np_utils.to_categorical(label_target, 2)
@@ -401,7 +395,6 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                                     scores[1] * 100))
 
             elif text_rep == 'embeddings':
-                print("[CLASSIFICATION] |\tProcessing embeddings\t|\tGen. embedding matrix\t|\tFitting neural network\t|")
                 embedding = embedding_models.get(embedding_model,
                                                  embedding_models["default"])
                 model = {}
@@ -417,9 +410,11 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                             text[j] = word[:-2]
 
                 data_source_str = to_string(data_source_aux)
+                print(data_source[10])
+                print(data_source_str[10])
                 data_target_str = to_string(data_target_aux)
 
-                #print("Generating embedding matrix")
+                print("Generating embedding matrix")
                 # for text_source, text_target in zip(data_source_str, 
                 #                                     data_target_str):
                 #     sentence = Sentence(text_source)
@@ -434,9 +429,8 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 #     for token in sentence:
                 #         word = str(token).split(" ")[-1]
                 #         model[word] = token.embedding.tolist()
-                print("                 |============= OK =============|", end="")
 
-                #print("Tokenizing it all")
+                print("Tokenizing it all")
                 tokenizer = Tokenizer(num_words=vocabulary_size)
                 tokenizer.fit_on_texts(data_source_aux)
 
@@ -450,7 +444,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                        padding='post',
                                        maxlen=maxlen)
 
-                #print("Transform into embedding vectors")
+                print("Transform into embedding vectors")
                 embedding_matrix = np.zeros((vocabulary_size, embedding_size))
 
                 for word in tokenizer.word_index:
@@ -464,10 +458,6 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                         word = str(token).split(" ")[-1]
                         emb = token.embedding
                         embedding_matrix[i] = emb
-                        print(f"{word}: {i}")
-                print(embedding_matrix)
-
-                print("============= OK ==============|", end="")
 
                 convl = neural_networks.create_conv_model(vocabulary_size,
                                                           embedding_size,
@@ -483,7 +473,6 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                           batch_size=batch_size,
                           epochs=epochs, verbose=0)
                 print(convl.summary())
-                print("============= OK ==============|\n")
 
                 scores = convl.evaluate(x_test, y_test,
                                         verbose=0,
