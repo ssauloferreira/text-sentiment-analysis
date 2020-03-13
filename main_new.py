@@ -3,18 +3,25 @@ import spacy
 import itertools
 import numpy as np
 import nltk
+import time
 
+from scipy.spatial import distance
+from sklearn.cluster import KMeans
 from nltk.corpus import sentiwordnet as swn
 from progress.bar import Bar
 
 # ======================= PARAMETERS ==============================
 pos = '1111'
 minimum_tf = 5
+n_cluster = 100
+limit = 200
 # ========================= MODELS ================================
 nlp = spacy.load("en_core_web_sm")
 pos_mapping = {
     "ADJ": "a", "VERB": "v", "NOUN": "n", "ADV": "r", "PROPN": "n"
 }
+negative_words = ['not', 'no', 'nothing', 'never']
+negative_pos = ["v", "a"]
 # =================================================================
 
 
@@ -28,29 +35,29 @@ def prepare_environ():
         print("[INFO] It wasn't necessary to download NLTK features.")
 
 
-def load_amazon_data():
+def load_amazon_data(limit=200):
     datasets = {}
     labels = {}
 
     with open('Datasets/dataset_books', 'rb') as fp:
         dataset = pickle.load(fp)
-    datasets['books'] = dataset.docs
-    labels['books'] = dataset.labels
+    datasets['books'] = dataset.docs[:limit]
+    labels['books'] = dataset.labels[:limit]
 
     with open('Datasets/dataset_dvd', 'rb') as fp:
         dataset = pickle.load(fp)
-    datasets['dvd'] = dataset.docs
-    labels['dvd'] = dataset.labels
+    datasets['dvd'] = dataset.docs[:limit]
+    labels['dvd'] = dataset.labels[:limit]
 
     # with open('Datasets/dataset_electronics', 'rb') as fp:
     #     dataset = pickle.load(fp)
-    # datasets['electronics'] = dataset.docs
-    # labels['electronics'] = dataset.labels
+    # datasets['electronics'] = dataset.docs[:limit]
+    # labels['electronics'] = dataset.labels[:limit]
 
     # with open('Datasets/dataset_kitchen', 'rb') as fp:
     #     dataset = pickle.load(fp)
-    # datasets['kitchen'] = dataset.docs
-    # labels['kitchen'] = dataset.labels
+    # datasets['kitchen'] = dataset.docs[:limit]
+    # labels['kitchen'] = dataset.labels[:limit]
 
     return datasets, labels
 
@@ -87,6 +94,7 @@ def preprocess(dataset, pos_tags, minimum_tf, label):
     for text in dataset:
         new_text = []
         doc = nlp(text)
+        negative = False
 
         for word in doc:
             pos = pos_mapping.get(word.pos_, False)
@@ -94,8 +102,14 @@ def preprocess(dataset, pos_tags, minimum_tf, label):
 
             if not pos or word.is_punct or word.is_space \
                     or token in rare_features or pos not in pos_filter:
-                # print(f"{token} | pos: {pos} | punct: {word.is_punct} | space: {word.is_space} | rare: {term_frequency.get(token, False)} {token in rare_features}")
                 continue
+
+            if token in negative_words:
+                negative = True
+
+            if negative and pos in negative_pos:
+                token = token + ".not"
+                negative = False
 
             token = token + "_" + pos
             new_text.append(token)
@@ -125,9 +139,21 @@ def words_to_swn(vocabulary, pos_form=True, minimum_score=0.0):
     scores = {}
 
     for item in vocabulary:
+        if item in scores:
+            continue
 
-        word, pos = item.split("_")
+        pos_word = item.split("_")
+        if len(pos_word) == 3:
+            continue
+
+        word, pos = pos_word
         syns = list(swn.senti_synsets(word))
+
+        neg_word = word.split(".")
+        negative = False
+        if len(neg_word) == 2:
+            negative = True
+            word = neg_word[0]
 
         if not syns:
             continue
@@ -142,22 +168,46 @@ def words_to_swn(vocabulary, pos_form=True, minimum_score=0.0):
                 obj_score.append(syn.obj_score())
 
         if pos_score:
-            score = [round(np.mean(pos_score), 3),
-                     round(np.mean(neg_score), 3),
-                     round(np.mean(obj_score), 3)]
+            if negative:
+                score = [round(np.mean(neg_score), 3),
+                         round(np.mean(pos_score), 3),
+                         round(np.mean(obj_score), 3)]
+            else:
+                score = [round(np.mean(pos_score), 3),
+                         round(np.mean(neg_score), 3),
+                         round(np.mean(obj_score), 3)]
 
             if score[0] > minimum_score or score[1] > minimum_score:
+                word = word + ".not" if negative else word
                 word = word + "_" + pos if pos_form else word
                 scores[word] = score
 
     return scores
 
 
+# input: dictionary | words and its scores
+# output: two lists | clusters of words
+def cluster_words(vocabulary_scores):
+    words, scores = zip(*vocabulary_scores.items())
+    clustering = KMeans(n_clusters=n_cluster, random_state=49)
+    clustering.fit(scores)
+
+    word_clusters = [[] for i in range(n_cluster)]
+    score_clusters = [[] for i in range(n_cluster)]
+
+    for i in range(len(words)):
+        aux = clustering.labels_[i]
+        word_clusters[aux].append(words[i])
+        score_clusters[aux].append(scores[i])
+
+    return word_clusters, score_clusters
+
+
 if __name__ == "__main__":
     prepare_environ()
-    datasets, labels = load_amazon_data()
+    datasets, labels = load_amazon_data(limit=1000)
 
-    print(f"[PROCESS] Preprocessing data. {len(datasets)} datasets have found.")
+    print(f"[PROCESS] Preprocessing data. {len(datasets)} datasets found.")
     for key in datasets.keys():
         datasets[key] = preprocess(dataset=datasets[key],
                                    pos_tags=pos,
@@ -173,4 +223,60 @@ if __name__ == "__main__":
         vocabulary_source = get_vocabulary(data_source)
         vocabulary_target = get_vocabulary(data_target)
 
-        print(words_to_swn(vocabulary_source))
+        print("[PROCESS] Getting SWN scores from words.")
+        vocabscore_src = words_to_swn(vocabulary_source)
+        vocabscore_tgt = words_to_swn(vocabulary_target)
+
+        vocab_score = {}
+        vocab_score.update(vocabscore_src)
+        vocab_score.update(vocabscore_tgt)
+
+        print("[PROCESS] Clustering features by its scores.")
+        wordcluster_src, scorecluster_src = cluster_words(vocabscore_src)
+        wordcluster_tgt, scorecluster_tgt = cluster_words(vocabscore_tgt)
+
+        common_features = set(vocabscore_src.keys()) \
+            & set(vocabscore_tgt.keys())
+
+        print("[PROCESS] Connecting clusters by common features.")
+        grouped_clusters = {}
+        for (i, cluster_a), (j, cluster_b) in itertools\
+                .product(enumerate(wordcluster_src),
+                         enumerate(wordcluster_tgt)):
+            similariy = len(set(cluster_a) & set(cluster_b))
+            current = grouped_clusters.get(i, (0, -1))
+
+            grouped_clusters[i] = (similariy, j) \
+                if similariy > current[0] else current
+
+        for group in grouped_clusters:
+            print(group, grouped_clusters[group])
+
+        print("[PROCESS] Connecting features")
+        grouped_clusters = [(key, value[1]) for key, value
+                            in grouped_clusters.items()]
+        grouped_features = {}
+        for i, j in grouped_clusters:
+            if j == -1:
+                continue
+            for l, word_a in enumerate(wordcluster_src[i]):
+                if word_a in common_features:
+                    continue
+                similariy = 0
+                index = -1
+
+                for k, word_b in enumerate(wordcluster_tgt[j]):
+                    if word_b in common_features:
+                        continue
+                    try:
+                        sim = 1/distance.euclidean(scorecluster_src[i][l],
+                                                   scorecluster_tgt[j][k])
+                    except Exception:
+                        pass
+                    if sim > similariy:
+                        similariy = sim
+                        index = k
+
+                grouped_features[word_a] = wordcluster_tgt[j][index]
+
+        print(grouped_features)
