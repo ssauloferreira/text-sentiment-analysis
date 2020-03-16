@@ -1,6 +1,7 @@
 from keras import Sequential
 from keras.layers import Conv1D, LSTM, Dropout, Dense,\
-                        Activation, Embedding, MaxPooling1D
+                        Activation, Embedding, MaxPooling1D, \
+                        SpatialDropout1D
 from keras.regularizers import l2
 
 
@@ -54,4 +55,15 @@ def mlp(input_shape, num_layers=1000):
     model.add(Dropout(0.5))
     model.add(Dense(2))
     model.add(Activation('softmax'))
+    return model
+
+
+def lstm(vocabulary_size, embedding_size, embedding_matrix, maxlen):
+    model = Sequential()
+    model.add(Embedding(vocabulary_size, embedding_size,
+                        weights=[embedding_matrix], input_length=maxlen,
+                        trainable=False))
+    model.add(SpatialDropout1D(0.2))
+    model.add(LSTM(100, dropout=0.2, recurrent_dropout=0.2))
+    model.add(Dense(2, activation='softmax'))
     return model
