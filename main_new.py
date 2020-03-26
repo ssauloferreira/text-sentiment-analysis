@@ -5,6 +5,7 @@ import numpy as np
 import nltk
 import math
 import neural_networks
+import copy
 
 from keras.utils import np_utils
 from keras_preprocessing.sequence import pad_sequences
@@ -15,21 +16,24 @@ from scipy.spatial import distance
 from sklearn.cluster import KMeans
 from nltk.corpus import sentiwordnet as swn
 from progress.bar import Bar
-from flair.embeddings import FlairEmbeddings, WordEmbeddings, BertEmbeddings, ELMoEmbeddings
+from flair.embeddings import FlairEmbeddings, WordEmbeddings, BertEmbeddings, \
+    StackedEmbeddings
 from flair.data import Sentence
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
 
 # ======================= PARAMETERS ==============================
-pos = '1101'
+pos = '1111'
 minimum_tf = 5
-n_cluster = 50
-limit = 200
-classifier = "lstm"
+n_cluster = 200
+classifier = "logistic_regression"
+vectorizer_model = "tfidfc"
 batch_size = 64
 epochs = 10
 num_layers = 200
-max_words = 8000
-embedding_model = "default"
-max_length = 50
+max_words = 1500
+embedding_model = "glove"
+max_length = 100
 # ========================= MODELS ================================
 nlp = spacy.load("en_core_web_sm")
 pos_mapping = {
@@ -37,11 +41,18 @@ pos_mapping = {
 }
 negative_words = ['not', 'no', 'nothing', 'never']
 negative_pos = ["v", "a"]
+
+bert = BertEmbeddings()
+flair_forward = FlairEmbeddings('news-forward')
+flair_backward = FlairEmbeddings('news-backward')
+glove = WordEmbeddings('glove')
 embedding_models = {
-                    "bert": BertEmbeddings(),
-                    # "elmo": ELMoEmbeddings(),
-                    "flair": FlairEmbeddings('news-backward-fast'),
-                    "default": WordEmbeddings('glove')
+                    "bert": bert,
+                    "flair_backward": flair_backward,
+                    "flair": flair_forward,
+                    # "stacked": StackedEmbeddings([bert, flair_backward,
+                    #                               flair_forward, glove]),
+                    "default": glove
                 }
 # =================================================================
 
@@ -59,26 +70,27 @@ def prepare_environ():
 def load_amazon_data(limit=200):
     datasets = {}
     labels = {}
+    limit = int(limit/2)
 
     with open('Datasets/dataset_books', 'rb') as fp:
         dataset = pickle.load(fp)
-    datasets['books'] = dataset.docs[:limit]
-    labels['books'] = dataset.labels[:limit]
+    datasets['books'] = dataset.docs[1000-limit:1000+limit]
+    labels['books'] = dataset.labels[1000-limit:1000+limit]
 
     with open('Datasets/dataset_dvd', 'rb') as fp:
         dataset = pickle.load(fp)
-    datasets['dvd'] = dataset.docs[:limit]
-    labels['dvd'] = dataset.labels[:limit]
+    datasets['dvd'] = dataset.docs[1000-limit:1000+limit]
+    labels['dvd'] = dataset.labels[1000-limit:1000+limit]
 
     # with open('Datasets/dataset_electronics', 'rb') as fp:
     #     dataset = pickle.load(fp)
-    # datasets['electronics'] = dataset.docs[:limit]
-    # labels['electronics'] = dataset.labels[:limit]
+    # datasets['electronics'] = dataset.docs[1000-limit:1000+limit]
+    # labels['electronics'] = dataset.labels[1000-limit:1000+limit]
 
     # with open('Datasets/dataset_kitchen', 'rb') as fp:
     #     dataset = pickle.load(fp)
-    # datasets['kitchen'] = dataset.docs[:limit]
-    # labels['kitchen'] = dataset.labels[:limit]
+    # datasets['kitchen'] = dataset.docs[1000-limit:1000+limit]
+    # labels['kitchen'] = dataset.labels[1000-limit:1000+limit]
 
     return datasets, labels
 
@@ -248,6 +260,8 @@ def cluster_words(vocabulary_scores):
     return word_clusters, score_clusters
 
 
+# input: list of list of strings
+# output: dictionary | words and its scores
 def compute_tfidf(docs, vocabulary):
     def computeTF(word_dict, bag_of_words):
         tf_dict = {}
@@ -302,6 +316,8 @@ def replace_in_dataset(dataset, grouped_features, inverse=True):
     return linked
 
 
+# input: list of strings, list of lists of strings, list of integers
+# output: list of strings
 def feature_selection(features, data, labels):
     cv_source = CountVectorizer(max_df=0.95, min_df=2,
                                 vocabulary=features)
@@ -319,6 +335,8 @@ def feature_selection(features, data, labels):
     return features
 
 
+# input: list of lists of strings, list of lists of strings, list of strings
+# output: list of lists of float
 def tfidf_it(data_src, data_tgt, features):
     cv = TfidfVectorizer(smooth_idf=True,
                          norm='l1',
@@ -330,6 +348,8 @@ def tfidf_it(data_src, data_tgt, features):
     return x_train, x_test
 
 
+# input: list of lists of strings
+# ouput: list of lists of strings
 def fix_word_format(data):
     for i, text in enumerate(data):
         for j, word in enumerate(text):
@@ -354,6 +374,134 @@ def fix_word_format(data):
                 data[i][j] = aux
 
 
+def tfrf_it(data_src, data_tgt, labels, features):
+    bar = Bar("TFRF Transform", max=len(data_src)+len(data_tgt)+len(features))
+    cv = CountVectorizer(vocabulary=features, analyzer='word')
+
+    x_train = cv.fit_transform(to_string(data_src))
+    x_test = cv.transform(to_string(data_tgt))
+
+    feature_map = []
+    for i, feature in enumerate(features):
+        feature_map.append([0, 0])
+        for j, text in enumerate(data_src):
+            if feature in text:
+                aux = labels[j]
+                feature_map[i][aux] += 1
+        bar.next()
+
+    x_train = x_train.toarray()
+    for i, text in enumerate(x_train):
+        for j, tf in enumerate(text):
+            rf = np.log2(2 + (feature_map[j][1] /
+                              max(1, feature_map[j][0])))
+            tfrf = tf * rf
+            # #print(f"{features[j]}\t\t\t\t{feature_map[j]}\t{tfrf}\t{tf}\t{rf}")
+            x_train[i][j] = tfrf
+        bar.next()
+
+    x_test = x_test.toarray()
+    for i, text in enumerate(x_test):
+        for j, tf in enumerate(text):
+            rf = np.log2(2 + (feature_map[j][1] /
+                              max(1, feature_map[j][0])))
+            tfrf = tf * rf
+            x_test[i][j] = tfrf
+        bar.next()
+    bar.finish()
+
+    #print(x_train)
+    return np.array(x_train), np.array(x_test)
+
+
+def tfidfc_it(data_src, data_tgt, labels, features):
+    bar = Bar("TFRF Transform", max=len(data_src)+len(data_tgt)+len(features))
+    cv = CountVectorizer(vocabulary=features)
+
+    n = len(data_src)
+    x_train = cv.fit_transform(to_string(data_src))
+    x_test = cv.transform(to_string(data_tgt))
+
+    feature_map = []
+    for i, feature in enumerate(features):
+        feature_map.append([0, 0])
+        for j, text in enumerate(data_src):
+            if feature in text:
+                aux = labels[j]
+                feature_map[i][aux] += 1
+        bar.next()
+
+    x_train = x_train.toarray()
+    for i, text in enumerate(x_train):
+        for j, tf in enumerate(text):
+            a = feature_map[j][1]
+            c = feature_map[j][0]
+            idfc = np.log(n/(a+1))
+            aux = np.log((a+1)/(c+1))
+
+            tfrf = tf * idfc * aux
+            # #print(f"{features[j]}\t\t\t\t{feature_map[j]}\t{tfrf}\t{tf}\t{rf}")
+            x_train[i][j] = tfrf
+        bar.next()
+
+    x_test = x_test.toarray()
+    for i, text in enumerate(x_test):
+        for j, tf in enumerate(text):
+            a = feature_map[j][1]
+            c = feature_map[j][0]
+            idfc = np.log(n/(a+1))
+            aux = np.log((a+1)/(c+1))
+
+            tfrf = tf * idfc * aux
+            x_test[i][j] = tfrf
+        bar.next()
+    bar.finish()
+
+    #print(x_train)
+    return np.array(x_train), np.array(x_test)
+
+
+def delta_tfidf_it(data_src, data_tgt, labels, features):
+    bar = Bar("TFRF Transform", max=len(data_src)+len(data_tgt)+len(features))
+    cv = TfidfVectorizer(vocabulary=features)
+    n = len(data_src)
+
+    x_train = cv.fit_transform(to_string(data_src))
+    x_test = cv.transform(to_string(data_tgt))
+
+    feature_map = []
+    for i, feature in enumerate(features):
+        feature_map.append([0, 0])
+        for j, text in enumerate(data_src):
+            if feature in text:
+                aux = labels[j]
+                feature_map[i][aux] += 1
+        bar.next()
+
+    x_train = x_train.toarray()
+    for i, text in enumerate(x_train):
+        for j, tfidf in enumerate(text):
+            delta = np.log2(((n*feature_map[j][0])+0.5) /
+                            ((n*feature_map[j][1])+0.5))
+            delta_tfidf = tfidf * delta
+            #print(f"{features[j]}\t\t\t{feature_map[j]}\t{tfidf}\t{delta}")
+            x_train[i][j] = delta_tfidf
+        bar.next()
+
+    x_test = x_test.toarray()
+    for i, text in enumerate(x_test):
+        for j, tfidf in enumerate(text):
+            delta = np.log2(((n*feature_map[j][0])+0.5) /
+                            ((n*feature_map[j][1])+0.5))
+            delta_tfidf = tfidf * delta
+            # #print(f"{features[j]}\t\t\t\t{feature_map[j]}\t{tfrf}\t{tf}\t{rf}")
+            x_train[i][j] = delta_tfidf
+        bar.next()
+    bar.finish()
+
+    return np.array(x_train), np.array(x_test)
+
+
 if __name__ == "__main__":
     prepare_environ()
     limit = input("Number of tests: ")
@@ -361,7 +509,7 @@ if __name__ == "__main__":
         limit = 2000
     datasets, labels = load_amazon_data(limit=int(limit))
 
-    print(f"[PROCESS] Preprocessing data. {len(datasets)} datasets found.")
+    #print(f"[PROCESS] Preprocessing data. {len(datasets)} datasets found.")
     for key in datasets.keys():
         datasets[key] = preprocess(dataset=datasets[key],
                                    pos_tags=pos,
@@ -369,10 +517,10 @@ if __name__ == "__main__":
                                    label=key)
 
     for source, target in itertools.combinations(datasets.keys(), 2):
-        data_source = datasets[source]
-        labels_source = labels[source]
-        data_target = datasets[target]
-        labels_target = labels[target]
+        data_source = copy.deepcopy(datasets[source])
+        labels_source = copy.deepcopy(labels[source])
+        data_target = copy.deepcopy(datasets[target])
+        labels_target = copy.deepcopy(labels[target])
 
         vocabulary_source = get_vocabulary(data_source)
         vocabulary_target = get_vocabulary(data_target)
@@ -382,7 +530,7 @@ if __name__ == "__main__":
         tfidf_score_tgt = compute_tfidf(docs=data_target,
                                         vocabulary=vocabulary_target)
 
-        print("[PROCESS] Getting SWN scores from words.")
+        #print("[PROCESS] Getting SWN scores from words.")
         vocabscore_src = words_to_swn(vocabulary_source)
         vocabscore_tgt = words_to_swn(vocabulary_target)
 
@@ -390,14 +538,14 @@ if __name__ == "__main__":
         vocab_score.update(vocabscore_src)
         vocab_score.update(vocabscore_tgt)
 
-        print("[PROCESS] Clustering features by its scores.")
+        #print("[PROCESS] Clustering features by its scores.")
         wordcluster_src, scorecluster_src = cluster_words(vocabscore_src)
         wordcluster_tgt, scorecluster_tgt = cluster_words(vocabscore_tgt)
 
         common_features = set(vocabscore_src.keys()) \
             & set(vocabscore_tgt.keys())
 
-        print("[PROCESS] Connecting clusters by common features.")
+        #print("[PROCESS] Connecting clusters by common features.")
         grouped_clusters = {}
         for (i, cluster_a), (j, cluster_b) in itertools\
                 .product(enumerate(wordcluster_src),
@@ -408,7 +556,7 @@ if __name__ == "__main__":
             grouped_clusters[i] = (similariy, j) \
                 if similariy > current[0] else current
 
-        print("[PROCESS] Connecting features")
+        #print("[PROCESS] Connecting features")
         grouped_clusters = [(key, value[1]) for key, value
                             in grouped_clusters.items()]
         grouped_features = {}
@@ -423,7 +571,8 @@ if __name__ == "__main__":
                 index = -1
 
                 for k, word_b in enumerate(wordcluster_tgt[j]):
-                    if word_b in common_features and word_b not in grouped_features:
+                    if word_b in common_features \
+                            and word_b not in grouped_features:
                         continue
                     try:
                         temp_dist = distance.euclidean(tfidf_score_src[word_a],
@@ -446,37 +595,74 @@ if __name__ == "__main__":
                                               grouped_features,
                                               True)
         linked_features = list(dict.fromkeys(linked_features))
+        #print("Nunber of linked features:", len(linked_features))
+        #print("Number of common features:", len(common_features))
 
-        print("[PROCRESS] Classifying...")
-        if classifier == "mlp":
+        #print("[PROCRESS] Classifying...")
+
+        print(f"Features selected: {len(linked_features) + len(common_features)}")
+        if classifier == "mlp" or classifier == "logistic_regression":
             features_selected = feature_selection(linked_features +
                                                   list(common_features),
                                                   data_source,
                                                   labels_source)
 
-            x_train, x_test = tfidf_it(data_source, data_target,
-                                       features_selected)
-            y_train = np_utils.to_categorical(labels_source, 2)
-            y_test = np_utils.to_categorical(labels_target, 2)
+            if vectorizer_model == "tfrf":
+                x_train, x_test = tfrf_it(data_source, data_target,
+                                          labels_source, features_selected)
+            elif vectorizer_model == "delta_tfidf":
+                x_train, x_test = delta_tfidf_it(data_source,
+                                                 data_target,
+                                                 labels_source,
+                                                 features_selected)
+            elif vectorizer_model == "tfidc":
+                x_train, x_test = tfidfc_it(data_source,
+                                            data_target,
+                                            labels_source,
+                                            features_selected)
+            else:
+                x_train, x_test = tfidf_it(data_source, data_target,
+                                           features_selected)
 
-            model = neural_networks.mlp(input_shape=(max_words,),
-                                        num_layers=num_layers)
-            # model.summary()
-            model.compile(loss='categorical_crossentropy',
-                          optimizer='adam', metrics=["accuracy"])
+            if classifier == "mlp":
+                y_train = np_utils.to_categorical(labels_source, 2)
+                y_test = np_utils.to_categorical(labels_target, 2)
 
-            model.fit(x_train,
-                      y_train,
-                      batch_size=batch_size,
-                      epochs=epochs,
-                      verbose=1)
-            scores = model.evaluate(x_test,
-                                    y_test,
-                                    verbose=0,
-                                    batch_size=batch_size)
+                model = neural_networks.mlp(input_shape=(max_words,),
+                                            num_layers=num_layers)
+                # model.summary()
+                model.compile(loss='categorical_crossentropy',
+                              optimizer='adam', metrics=["accuracy"])
 
-            print(source, target, "%s: %.2f%%" % (model.metrics_names[1],
-                                                  scores[1] * 100))
+                model.fit(x_train,
+                          y_train,
+                          batch_size=batch_size,
+                          epochs=epochs,
+                          verbose=0)
+                scores = model.evaluate(x_test,
+                                        y_test,
+                                        verbose=0,
+                                        batch_size=batch_size)
+
+                print(source, target, "%s: %.2f%%" % (model.metrics_names[1],
+                                                      scores[1] * 100))
+            elif classifier == "logistic_regression":
+                classifier = LogisticRegression()
+                classifier.fit(x_train, labels_source)
+                predict = classifier.predict(x_test)
+
+                # precision = f1_score(label_target, predict,
+                #                         average='binary')
+                # print('Precision:', precision)
+                accuracy = accuracy_score(labels_target, predict)
+                # print('Accuracy: ', accuracy)
+                # recall = recall_score(label_target, predict,
+                #                         average='binary')
+                # print('Recall: ', recall)
+                # confMatrix = confusion_matrix(label_target, predict)
+                # print('Confusion matrix: \n', confMatrix)
+                # print('\n')
+                print(source, target, ": ", accuracy*100)
         else:
             embedding = embedding_models.get(embedding_model,
                                              embedding_models["default"])
@@ -486,9 +672,9 @@ if __name__ == "__main__":
 
             data_source_str = to_string(data_source)
             data_target_str = to_string(data_target)
-            # print(data_source_str)
+            # #print(data_source_str)
 
-            # print(data_source_str)
+            # #print(data_source_str)
 
             tokenizer = Tokenizer(num_words=max_words)
             tokenizer.fit_on_texts(data_source_str)
@@ -508,7 +694,7 @@ if __name__ == "__main__":
             for token in aux:
                 embedding_size = len(token.embedding.tolist())
 
-            print("[PROCESS] Transform into embedding vectors")
+            #print("[PROCESS] Transform into embedding vectors")
             embedding_matrix = np.zeros((max_words, embedding_size))
 
             for word in tokenizer.word_index:
@@ -540,12 +726,12 @@ if __name__ == "__main__":
                             metrics=["accuracy"])
             network.fit(x_train, y_train,
                         batch_size=batch_size,
-                        epochs=epochs, verbose=1)
-            # print(network.summary())
+                        epochs=epochs, verbose=0)
+            # #print(network.summary())
 
             scores = network.evaluate(x_test, y_test,
-                                      verbose=1,
+                                      verbose=0,
                                       batch_size=batch_size)
-            print("[RESULT]")
+            #print("[RESULT]")
             print("\t", source, target, "%s: %.2f%%" % (network.metrics_names[1],
                                                         scores[1] * 100))
