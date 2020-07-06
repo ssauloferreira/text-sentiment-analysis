@@ -16,7 +16,10 @@ from sklearn.metrics import f1_score, accuracy_score, recall_score
 from sklearn.model_selection import train_test_split
 from scipy.spatial import distance
 from sklearn.tree import tree
+from flair.embeddings import FlairEmbeddings, WordEmbeddings
+from flair.data import Sentence
 
+import torch
 import neural_networks
 from pre_processing import to_process, get_vocabulary, get_senti_representation
 
@@ -35,18 +38,23 @@ def to_string(lists):
     return new_docs
 
 
-model = gensim.models.KeyedVectors\
-    .load_word2vec_format('Datasets/GoogleNews-vectors-negative300.bin',
-                          binary=True)
+embedding_models = {
+                    # "bert": BertEmbeddings(),
+                    # "elmo": ELMoEmbeddings(),
+                    "flair": FlairEmbeddings('news-backward-fast'),
+                    "default": WordEmbeddings('glove')
+                }
 classif = "mlp"
-vocabulary_size = 10000
-embedding_size = 300
+vocabulary_size = 5000
+maxlen = 100
+embedding_size = 1024
 text_rep = 'embeddings'
+embedding_model = 'flair'
 pos = '1111'
 num_layers = 200
 nfeature = 8000
 n = 200
-maxlen = 500
+maxlen = 50
 batch_size = 64
 filters = 250
 kernel_size = 5
@@ -55,57 +63,80 @@ epochs = 5
 nb_epoch_t = 50
 _ = None
 
-get_bin = lambda x, n: format(x, 'b').zfill(n)
+
+def get_bin(x, n): return format(x, 'b').zfill(n)
+
+
+def generatePredictionData(dataset, max_length,
+                           emb_size, embedding_model):
+    x_batch = []
+    for i, text in enumerate(dataset):
+        print(f"{i}/{len(dataset)}")
+        my_sent = text
+        sentence = Sentence(my_sent)
+        embedding_model.embed(sentence)
+
+        x = []
+        for token in sentence:
+            x.append(token.embedding.cpu().detach().numpy())
+            if len(x) == max_length:
+                break
+
+        while len(x) < max_length:
+            x.append(np.zeros(emb_size))
+
+        x_batch.append(x)
+    return x_batch
+
 
 # -------------------------- preprocessing ------------------------------------
-logger.info("\npreprocessing=====================================\n")
+print("\npreprocessing=====================================\n")
 
 datasets = {}
 labels = {}
 
 with open('Datasets/dataset_books', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
+data = to_process(dataset.docs, pos, 3, "Books")
 datasets['books'] = data
 labels['books'] = dataset.labels
 
 with open('Datasets/dataset_dvd', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
+data = to_process(dataset.docs, pos, 3, "DVD")
 datasets['dvd'] = data
 labels['dvd'] = dataset.labels
 
 with open('Datasets/dataset_electronics', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
+data = to_process(dataset.docs, pos, 3, "Eletronics")
 datasets['electronics'] = data
 labels['electronics'] = dataset.labels
 
 with open('Datasets/dataset_kitchen', 'rb') as fp:
     dataset = pickle.load(fp)
-data = to_process(dataset.docs, pos, 3)
+data = to_process(dataset.docs, pos, 3, "Kitchen")
 datasets['kitchen'] = data
 labels['kitchen'] = dataset.labels
 
 for src in ['books', 'dvd', 'electronics', 'kitchen']:
     for tgt in ['books', 'dvd', 'electronics', 'kitchen']:
         if src != tgt:
-
             data_source = datasets[src]
             label_source = labels[src]
             data_target = datasets[tgt]
             label_target = labels[tgt]
 
             # --------------------- clustering --------------------------------
-            logger.info("Clustering features")
+            print("[PROGRESS] Clustering features")
 
             vocabulary_source = get_vocabulary(data_source)
-            logger.info('Vocabulary source:', len(vocabulary_source))
+            print('[PROGRESS] Vocabulary source:', len(vocabulary_source))
             vocab_source, scores_source, dicti_source = \
                 get_senti_representation(vocabulary_source, True)
 
             vocabulary_target = get_vocabulary(data_target)
-            logger.info('Vocabulary target:', len(vocabulary_target))
+            print('[PROGRESS] Vocabulary target:', len(vocabulary_target))
             vocab_target, scores_target, dicti_target = \
                 get_senti_representation(vocabulary_target, True)
 
@@ -136,9 +167,9 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
             # ----------------- feature selection -----------------------------
             common = []
 
-            logger.info("Number of sentiment features source:",
+            print("[PROGRESS] Number of sentiment features source:",
                         len(vocab_source))
-            logger.info("Number of sentiment features target:",
+            print("[PROGRESS] Number of sentiment features target:",
                         len(vocab_target))
 
             for feature in vocab_source:
@@ -146,10 +177,10 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     common.append(feature)
 
             features_source = common
-            logger.info("Number of common features: ", len(common))
+            print("[PROGRESS] Number of common features: ", len(common))
 
             # ----------------- agrupando clusters ----------------------------
-            logger.info("Linking the most similar clusters")
+            print("Linking the most similar clusters")
             grouped_s = []
             grouped_t = []
 
@@ -179,7 +210,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     grouped_t.append(index)
 
             # ------------------- calculating ALSENT --------------------------
-            logger.info("Connecting features")
+            print("[PROGRESS] Connecting features")
 
             def get_average_tfidf(feature, data):
                 total = []
@@ -272,7 +303,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                         data_target_aux[i][j] = \
                             grouped_features[data_target_aux[i][j]]
 
-            logger.info("Data has been already formatted.")
+            print("[PROGRESS] Data has been already formatted.")
             if text_rep == 'tf-idf':
                 # ------------------ feature selection ------------------------
                 features_linked = list(dict.fromkeys(grouped_features.values()))
@@ -309,15 +340,15 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                     precision = f1_score(label_target, predict,
                                          average='binary')
-                    logger.info('Precision:', precision)
+                    print('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    logger.info('Accuracy: ', accuracy)
+                    print('Accuracy: ', accuracy)
                     recall = recall_score(label_target, predict,
                                           average='binary')
-                    logger.info('Recall: ', recall)
+                    print('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    logger.info('Confusion matrix: \n', confMatrix)
-                    logger.info('\n')
+                    print('Confusion matrix: \n', confMatrix)
+                    print('\n')
                     print(src, tgt, ": ", accuracy*100)
 
                 if classif == "deicion tree":
@@ -327,22 +358,22 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
 
                     precision = f1_score(label_target, predict,
                                          average='binary')
-                    logger.info('Precision:', precision)
+                    print('Precision:', precision)
                     accuracy = accuracy_score(label_target, predict)
-                    logger.info('Accuracy: ', accuracy)
+                    print('Accuracy: ', accuracy)
                     recall = recall_score(label_target, predict,
                                           average='binary')
-                    logger.info('Recall: ', recall)
+                    print('Recall: ', recall)
                     confMatrix = confusion_matrix(label_target, predict)
-                    logger.info('Confusion matrix: \n', confMatrix)
-                    logger.info('\n')
+                    print('Confusion matrix: \n', confMatrix)
+                    print('\n')
                     print(src, tgt, ": ", accuracy*100)
 
                 if classif == "mlp":
                     y_train = np_utils.to_categorical(label_target, 2)
                     y_test = np_utils.to_categorical(label_source, 2)
 
-                    model = neural_networks.mlp(input_shape=num_words,
+                    model = neural_networks.mlp(input_shape=(num_words,),
                                                 num_layers=num_layers)
                     # model.summary()
                     model.compile(loss='categorical_crossentropy',
@@ -357,31 +388,54 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                             y_test,
                                             verbose=0,
                                             batch_size=batch_size)
-                    logger.info("src", src, "tgt", tgt, "num_layers",
+                    print("src", src, "tgt", tgt, "num_layers",
                                 num_layers, 'pos', pos)
 
                     print(src, tgt, "%s: %.2f%%" % (model.metrics_names[1],
                                                     scores[1] * 100))
 
             elif text_rep == 'embeddings':
+                embedding = embedding_models.get(embedding_model,
+                                                 embedding_models["default"])
+                model = {}
 
-                for text in data_source_aux:
-                    for a in range(len(text)):
-                        if '_' in text[a]:
-                            text[a] = text[a][:-2]
+                for i, text in enumerate(data_source_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
 
-                for text in data_target_aux:
-                    for a in range(len(text)):
-                        if '_' in text[a]:
-                            text[a] = text[a][:-2]
+                for i, text in enumerate(data_target_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
 
+                data_source_str = to_string(data_source_aux)
+                print(data_source[10])
+                print(data_source_str[10])
+                data_target_str = to_string(data_target_aux)
+
+                print("Generating embedding matrix")
+                # for text_source, text_target in zip(data_source_str, 
+                #                                     data_target_str):
+                #     sentence = Sentence(text_source)
+                #     print(sentence)
+                #     embedding.embed(sentence)
+                #     for token in sentence:
+                #         word = str(token).split(" ")[-1]
+                #         model[word] = token.embedding.tolist()
+
+                #     sentence = Sentence(text_target)
+                #     embedding.embed(sentence)
+                #     for token in sentence:
+                #         word = str(token).split(" ")[-1]
+                #         model[word] = token.embedding.tolist()
+
+                print("Tokenizing it all")
                 tokenizer = Tokenizer(num_words=vocabulary_size)
-                tokenizer.fit_on_texts(data_source_aux + data_target_aux)
+                tokenizer.fit_on_texts(data_source_aux)
 
                 sequences_src = tokenizer.texts_to_sequences(data_source_aux)
                 sequences_tgt = tokenizer.texts_to_sequences(data_target_aux)
-
-                maxlen = 100
 
                 x_train = pad_sequences(sequences_src,
                                         padding='post',
@@ -390,9 +444,7 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                                        padding='post',
                                        maxlen=maxlen)
 
-                data_source_aux = []
-                data_target_aux = []
-
+                print("Transform into embedding vectors")
                 embedding_matrix = np.zeros((vocabulary_size, embedding_size))
 
                 for word in tokenizer.word_index:
@@ -400,95 +452,17 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                     if i >= vocabulary_size:
                         break
 
-                    if '-' in word:
-                        aux = word.split('-')
-                        aux1 = aux[0]
-                        aux2 = aux[1]
+                    sentence = Sentence(word.split("-")[0])
+                    embedding.embed(sentence)
+                    for token in sentence:
+                        word = str(token).split(" ")[-1]
+                        emb = token.embedding
+                        embedding_matrix[i] = emb
 
-                        if aux1 not in model and aux2 not in model:
-                            embedding_matrix[i] = np.zeros(embedding_size)
-                        elif aux1 not in model:
-                            embedding_matrix[i] = model[aux2]
-                        else:
-                            embedding_matrix[i] = model[aux1]
-                    else:
-                        if word in model:
-                            embedding_matrix[i] = model[word]
-                        else:
-                            embedding_matrix[i] = np.zeros(embedding_size)
-
-                '''
-                source_emb = []
-                for text in data_source_aux:
-                    text_emb = []
-                    for word in text:
-                        if '_' in word:
-                            aux = word.split('-')
-            
-                            aux2 = []
-                            if aux[0] in model.wv:
-                                aux2 = model.wv[aux[0]]
-            
-                            aux3 = []
-                            if aux[1] in model.wv:
-                                aux3 = model.wv[aux[1]]
-            
-                            if len(aux2) == 0:
-                                if len(aux3) > 0:
-                                    text_emb.append(aux3)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            elif len(aux3) == 0:
-                                if len(aux2) > 0:
-                                    text_emb.append(aux2)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            else:
-                                text_emb.append(distance.euclidean(aux2, aux3))
-                        else:
-                            if word in model.wv:
-                                text_emb.append(model.wv[word])
-                            else:
-                                text_emb.append(model.wv['a'])
-                    source_emb.append(text_emb)
-
-                target_emb = []
-                for text in data_target_aux:
-                    text_emb = []
-                    for word in text:
-                        if '_' in word:
-                            aux = word.split('-')
-
-                            aux2 = []
-                            if aux[0] in model.wv:
-                                aux2 = model.wv[aux[0]]
-
-                            aux3 = []
-                            if aux[1] in model.wv:
-                                aux3 = model.wv[aux[1]]
-            
-                            if len(aux2) == 0:
-                                if len(aux3) > 0:
-                                    text_emb.append(aux3)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            elif len(aux3) == 0:
-                                if len(aux2) > 0:
-                                    text_emb.append(aux2)
-                                else:
-                                    text_emb.append(model.wv['a'])
-                            else:
-                                text_emb.append(distance.euclidean(aux2, aux3))
-                        else:
-                            if word in model.wv:
-                                text_emb.append(model.wv[word])
-                            else:
-                                text_emb.append(model.wv['a'])
-                    target_emb.append(text_emb)
-                '''
                 convl = neural_networks.create_conv_model(vocabulary_size,
                                                           embedding_size,
-                                                          embedding_matrix)
+                                                          embedding_matrix,
+                                                          maxlen)
                 y_train = np_utils.to_categorical(label_source, 2)
                 y_test = np_utils.to_categorical(label_target, 2)
 
@@ -498,13 +472,72 @@ for src in ['books', 'dvd', 'electronics', 'kitchen']:
                 convl.fit(x_train, y_train,
                           batch_size=batch_size,
                           epochs=epochs, verbose=0)
+                print(convl.summary())
 
                 scores = convl.evaluate(x_test, y_test,
                                         verbose=0,
                                         batch_size=batch_size)
+                print("[RESULT]")
+                print("\t", src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
+                                                      scores[1] * 100))
+
+            elif text_rep == "flair":
+                model = embedding_models.get(embedding_model,
+                                             embedding_models["default"])
+
+                for i, text in enumerate(data_source_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
+                        if '-' in word:
+                            text[j] = word.split("-")[0]
+
+                for i, text in enumerate(data_target_aux):
+                    for j, word in enumerate(text):
+                        if '_' in word:
+                            text[j] = word[:-2]
+                        if '-' in word:
+                            text[j] = word.split("-")[0]
+
+                data_source_str = to_string(data_source_aux)
+                print(data_source_str)
+                data_target_str = to_string(data_target_aux)
+
+                x_train = generatePredictionData(dataset=data_source_str,
+                                                 max_length=maxlen,
+                                                 emb_size=embedding_size,
+                                                 embedding_model=model)
+
+                x_test = generatePredictionData(dataset=data_target_str,
+                                                max_length=maxlen,
+                                                emb_size=embedding_size,
+                                                embedding_model=model)
+                print(x_train)
+
+                x_train = np.array(x_train)
+                x_test = np.array(x_test)
+
+                y_train = np_utils.to_categorical(label_source, 2)
+                y_test = np_utils.to_categorical(label_target, 2)
+
+                convl = neural_networks.convL(input_shape=(maxlen,
+                                                           embedding_size))
+                convl.compile(loss='categorical_crossentropy',
+                              optimizer='adam', metrics=["accuracy"])
+                print(convl.summary())
+
+                convl.fit(x_train,
+                          y_train,
+                          batch_size=batch_size,
+                          epochs=epochs,
+                          verbose=1)
+
+                scores = convl.evaluate(x_test,
+                                        y_test,
+                                        verbose=1,
+                                        batch_size=batch_size)
+                print(scores)
+                print(y_test)
+
                 print(src, tgt, "%s: %.2f%%" % (convl.metrics_names[1],
                                                 scores[1] * 100))
-
-            logger.info("src", src, "tgt", tgt, "num_layers", num_layers,
-                        'pos', pos, 'text_representation', text_rep)
-            logger.info("\n------------------------------------------------\n")
